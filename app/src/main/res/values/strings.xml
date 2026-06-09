@@ -86,4 +86,8 @@
     <string name="alert_threshold_text">%1$.1f %2$s — %3$s threshold of %4$.1f</string>
     <string name="notification_channel_alert">Glucose alert</string>
     <string name="notification_channel_alert_desc">Glucose threshold alerts</string>
+
+    <string name="wear_app_not_installed">Watch app not detected</string>
+    <string name="wear_app_not_installed_desc">Install GlucoseSync on your Wear OS watch for at-a-glance glucose readings.</string>
+    <string name="wear_install_button">Install on watch</string>
 </resources>

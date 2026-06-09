@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<capability-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <capability android:name="glucose_sync_wear" />
+</capability-list>

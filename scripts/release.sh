@@ -53,7 +53,7 @@ echo "Bumping: $CURRENT_VERSION ($CURRENT_CODE) → $NEW_VERSION ($NEW_CODE)"
 
 sed -i.bak "s/versionCode = $CURRENT_CODE/versionCode = $NEW_CODE/" "$APP_GRADLE" && rm -f "$APP_GRADLE.bak"
 sed -i.bak "s/versionName = \"$CURRENT_VERSION\"/versionName = \"$NEW_VERSION\"/" "$APP_GRADLE" && rm -f "$APP_GRADLE.bak"
-sed -i.bak "s/versionCode = $CURRENT_CODE/versionCode = $NEW_CODE/" "$WEAR_GRADLE" && rm -f "$WEAR_GRADLE.bak"
+sed -i.bak "s/versionCode = $((CURRENT_CODE + 100000))/versionCode = $((NEW_CODE + 100000))/" "$WEAR_GRADLE" && rm -f "$WEAR_GRADLE.bak"
 sed -i.bak "s/versionName = \"$CURRENT_VERSION\"/versionName = \"$NEW_VERSION\"/" "$WEAR_GRADLE" && rm -f "$WEAR_GRADLE.bak"
 
 git add "$APP_GRADLE" "$WEAR_GRADLE"

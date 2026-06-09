@@ -8,6 +8,7 @@ import com.nimbleflux.glucosesync.app.BuildConfig
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
 import com.nimbleflux.glucosesync.shared.provider.GlucoseProvider
 import com.nimbleflux.glucosesync.shared.provider.ProviderRegistry
+import com.nimbleflux.glucosesync.shared.provider.libre.LibreLinkUpProvider
 import com.nimbleflux.glucosesync.app.data.SettingsStore
 import com.nimbleflux.glucosesync.app.R
 import com.nimbleflux.glucosesync.app.ui.MainActivity
@@ -122,6 +123,19 @@ class GlucosePollingService : android.app.Service() {
                         }
                     }.onFailure { e ->
                         if (BuildConfig.DEBUG) Log.e(TAG, "Polling error: ${e.message}")
+                        if (p is LibreLinkUpProvider) {
+                            val msg = e.message ?: ""
+                            if (msg.contains("403") || msg.contains("401") || msg.contains("Session expired")) {
+                                if (BuildConfig.DEBUG) Log.d(TAG, "Attempting LibreLinkUp re-auth")
+                                val reAuthed = p.reAuthenticate()
+                                if (reAuthed) {
+                                    credentialStore.saveSelectedProvider("libre_linkup")
+                                    if (BuildConfig.DEBUG) Log.d(TAG, "LibreLinkUp re-auth succeeded")
+                                } else {
+                                    if (BuildConfig.DEBUG) Log.e(TAG, "LibreLinkUp re-auth failed")
+                                }
+                            }
+                        }
                     }
                 } catch (e: CancellationException) {
                     throw e

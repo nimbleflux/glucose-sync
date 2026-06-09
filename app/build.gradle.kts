@@ -50,7 +50,6 @@ android {
 
 dependencies {
     implementation(project(":shared"))
-    wearApp(project(":wear"))
 
     val composeBomVersion = rootProject.extra["composeBomVersion"] as String
     val lifecycleVersion = rootProject.extra["lifecycleVersion"] as String

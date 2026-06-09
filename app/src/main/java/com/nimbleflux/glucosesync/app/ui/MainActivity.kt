@@ -109,12 +109,14 @@ class MainActivity : ComponentActivity() {
                             averageGlucose = state.averageGlucose,
                             highThreshold = state.highThreshold,
                             lowThreshold = state.lowThreshold,
+                            showWearInstallBanner = state.watchPaired && !state.wearAppInstalled,
                             onRefresh = { viewModel.refreshGlucose() },
                             onLogout = {
                                 context.stopService(Intent(context, GlucosePollingService::class.java))
                                 viewModel.logout()
                             },
-                            onSettings = { viewModel.showSettings() }
+                            onSettings = { viewModel.showSettings() },
+                            onInstallWearApp = { viewModel.openWatchPlayStore() }
                         )
                     }
                     state.selectedProviderId != null -> {

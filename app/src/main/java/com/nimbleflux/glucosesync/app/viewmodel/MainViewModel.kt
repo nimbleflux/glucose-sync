@@ -16,11 +16,16 @@ import com.nimbleflux.glucosesync.shared.provider.ProviderCredentials
 import com.nimbleflux.glucosesync.shared.provider.ProviderRegistry
 import com.nimbleflux.glucosesync.shared.provider.libre.LibreLinkUpProvider
 import com.nimbleflux.glucosesync.app.ui.PatientInfo
+import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
+import com.google.android.gms.tasks.Tasks
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class MainUiState(
     val isLoggedIn: Boolean = false,
@@ -46,7 +51,9 @@ data class MainUiState(
     val selectedProviderId: String? = null,
     val showProviderPicker: Boolean = false,
     val showPatientPicker: Boolean = false,
-    val patients: List<PatientInfo> = emptyList()
+    val patients: List<PatientInfo> = emptyList(),
+    val watchPaired: Boolean = false,
+    val wearAppInstalled: Boolean = true
 ) {
     val glucoseDisplay: Double?
         get() = glucose?.let { if (glucoseUnit == "mg/dL") it * 18 else it }
@@ -84,9 +91,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
+    private val refreshMutex = Mutex()
     private var demoPollingJob: kotlinx.coroutines.Job? = null
 
     init {
+        checkWearCompanion()
         viewModelScope.launch {
             val unit = settingsStore.getUnit()
             val alerts = settingsStore.getAlertsEnabled()
@@ -273,49 +282,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         val p = provider ?: return
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-            p.fetchGlucose()
-                .onSuccess { snapshot ->
-                    val history = if (snapshot.history.isNotEmpty()) {
-                        snapshot.history.trimTo12h()
-                    } else {
-                        val currentHistory = _uiState.value.history.toMutableList()
-                        val g = snapshot.glucose
-                        if (g != null && snapshot.sensorActive) {
-                            currentHistory.add(GlucoseHistoryPoint(snapshot.timestamp, g))
+            refreshMutex.withLock {
+                _uiState.update { it.copy(isLoading = true, error = null) }
+                p.fetchGlucose()
+                    .onSuccess { snapshot ->
+                        val history = if (snapshot.history.isNotEmpty()) {
+                            snapshot.history.trimTo12h()
+                        } else {
+                            val currentHistory = _uiState.value.history.toMutableList()
+                            val g = snapshot.glucose
+                            if (g != null && snapshot.sensorActive) {
+                                currentHistory.add(GlucoseHistoryPoint(snapshot.timestamp, g))
+                            }
+                            currentHistory.trimTo12h()
                         }
-                        currentHistory.trimTo12h()
-                    }
 
-                    val trend = if (snapshot.trend == TrendArrow.UNKNOWN) {
-                        computeTrend(snapshot.glucose, history) ?: snapshot.trend
-                    } else {
-                        snapshot.trend
-                    }
+                        val trend = if (snapshot.trend == TrendArrow.UNKNOWN) {
+                            computeTrend(snapshot.glucose, history) ?: snapshot.trend
+                        } else {
+                            snapshot.trend
+                        }
 
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            glucose = snapshot.glucose,
-                            lastUpdate = snapshot.timestamp,
-                            sensorActive = snapshot.sensorActive,
-                            trend = trend.symbol,
-                            error = if (!snapshot.sensorActive) "No active sensor" else null,
-                            history = history
-                        )
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                glucose = snapshot.glucose,
+                                lastUpdate = snapshot.timestamp,
+                                sensorActive = snapshot.sensorActive,
+                                trend = trend.symbol,
+                                error = if (!snapshot.sensorActive) "No active sensor" else null,
+                                history = history
+                            )
+                        }
+                        snapshot.glucose?.let { g ->
+                            syncToWatch(g, snapshot.timestamp, trend.symbol, snapshot.unit)
+                        }
                     }
-                    snapshot.glucose?.let { g ->
-                        syncToWatch(g, snapshot.timestamp, trend.symbol, snapshot.unit)
+                    .onFailure { e ->
+                        val msg = when {
+                            e.message?.contains("403") == true -> "Authentication expired. Try signing in again."
+                            e.message?.contains("Unable to resolve") == true -> "No internet connection"
+                            else -> e.message ?: "Could not fetch data"
+                        }
+                        _uiState.update { it.copy(isLoading = false, error = msg) }
                     }
-                }
-                .onFailure { e ->
-                    val msg = when {
-                        e.message?.contains("403") == true -> "Authentication expired. Try signing in again."
-                        e.message?.contains("Unable to resolve") == true -> "No internet connection"
-                        else -> e.message ?: "Could not fetch data"
-                    }
-                    _uiState.update { it.copy(isLoading = false, error = msg) }
-                }
+            }
         }
     }
 
@@ -425,5 +436,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             dataClient.putDataItem(request.asPutDataRequest().setUrgent())
         } catch (_: Exception) { }
+    }
+
+    private fun checkWearCompanion() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val nodeClient = Wearable.getNodeClient(getApplication<Application>())
+                val connectedNodes = Tasks.await(nodeClient.connectedNodes)
+                val hasWatch = connectedNodes.isNotEmpty()
+                if (!hasWatch) {
+                    _uiState.update { it.copy(watchPaired = false, wearAppInstalled = true) }
+                    return@launch
+                }
+                val capabilityClient = Wearable.getCapabilityClient(getApplication<Application>())
+                val capabilityInfo = Tasks.await(
+                    capabilityClient.getCapability("glucose_sync_wear", CapabilityClient.FILTER_REACHABLE)
+                )
+                val hasCapability = capabilityInfo.nodes.isNotEmpty()
+                _uiState.update { it.copy(watchPaired = true, wearAppInstalled = hasCapability) }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(watchPaired = false, wearAppInstalled = true) }
+            }
+        }
+    }
+
+    fun openWatchPlayStore() {
+        viewModelScope.launch {
+            try {
+                val intent = android.content.Intent(
+                    android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse("https://play.google.com/store/apps/details?id=com.nimbleflux.glucosesync")
+                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                getApplication<Application>().startActivity(intent)
+            } catch (_: Exception) { }
+        }
     }
 }

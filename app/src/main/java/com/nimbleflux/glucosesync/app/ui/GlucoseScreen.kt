@@ -38,9 +38,11 @@ fun GlucoseScreen(
     averageGlucose: Double?,
     highThreshold: Double,
     lowThreshold: Double,
+    showWearInstallBanner: Boolean,
     onRefresh: () -> Unit,
     onLogout: () -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    onInstallWearApp: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -100,6 +102,11 @@ fun GlucoseScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             UserInfoRow(realname, isDemo)
+
+            if (showWearInstallBanner) {
+                Spacer(modifier = Modifier.height(8.dp))
+                WearInstallBanner(onInstall = onInstallWearApp)
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -362,5 +369,49 @@ private fun ChecklistRow(text: String) {
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
         Spacer(modifier = Modifier.width(6.dp))
         Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun WearInstallBanner(onInstall: () -> Unit) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Filled.Watch,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.wear_app_not_installed),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+                Text(
+                    stringResource(R.string.wear_app_not_installed_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            FilledTonalButton(
+                onClick = onInstall,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    stringResource(R.string.wear_install_button),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
     }
 }

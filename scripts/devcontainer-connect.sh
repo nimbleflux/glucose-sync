@@ -63,8 +63,8 @@ echo "=== Installing Wear OS app on $WEAR_SERIAL ==="
 
 echo ""
 echo "=== Launching apps ==="
-"$ADB" -s "$PHONE_SERIAL" shell am start -n com.nimbleflux.medtrumwatch/com.nimbleflux.medtrumwatch.app.ui.MainActivity
-"$ADB" -s "$WEAR_SERIAL" shell am start -n com.nimbleflux.medtrumwatch.wear/com.nimbleflux.medtrumwatch.wear.ui.MainActivity
+"$ADB" -s "$PHONE_SERIAL" shell am start -n com.nimbleflux.glucosesync/com.nimbleflux.glucosesync.app.ui.MainActivity
+"$ADB" -s "$WEAR_SERIAL" shell am start -n com.nimbleflux.glucosesync/com.nimbleflux.glucosesync.wear.ui.MainActivity
 
 echo ""
 echo "Done! Phone app on $PHONE_SERIAL, Wear app on $WEAR_SERIAL"

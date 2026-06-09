@@ -14,7 +14,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MedtrumWatch"
+rootProject.name = "GlucoseSync"
 include(":shared")
 include(":app")
 include(":wear")

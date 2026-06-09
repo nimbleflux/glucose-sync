@@ -12,7 +12,7 @@ android {
         applicationId = "com.nimbleflux.glucosesync"
         minSdk = 30
         targetSdk = 36
-        versionCode = 6
+        versionCode = 100006
         versionName = "1.3.2"
     }
 

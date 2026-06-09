@@ -182,6 +182,11 @@ class LibreLinkUpProvider(private val context: Context, private val debug: Boole
         val api = authenticatedApi ?: return Result.failure(Exception("Not logged in"))
         val pid = patientId.ifBlank { return Result.failure(Exception("No patient selected")) }
 
+        if (tokenExpires > 0 && System.currentTimeMillis() / 1000 > tokenExpires) {
+            val reAuthed = reAuthenticate()
+            if (!reAuthed) return Result.failure(Exception("Session expired. Please sign in again."))
+        }
+
         return try {
             val response = api.getGraph(pid)
             if (response.status != 0) {
@@ -226,6 +231,16 @@ class LibreLinkUpProvider(private val context: Context, private val debug: Boole
         accountId = ""
         patientId = ""
         authenticatedApi = null
+    }
+
+    suspend fun reAuthenticate(): Boolean {
+        val creds = credentialStore.getCredentials() ?: return false
+        return try {
+            val result = login(ProviderCredentials.UsernamePassword(creds.username, creds.password, creds.baseUrl))
+            result.isSuccess
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun mapTrend(arrow: Int?): TrendArrow = when (arrow) {
