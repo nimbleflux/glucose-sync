@@ -130,7 +130,6 @@ jobs:
           body: ${{ steps.notes.outputs.notes }}
           files: |
             app/build/outputs/bundle/release/app-release.aab
-            wear/build/outputs/bundle/release/wear-release.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
