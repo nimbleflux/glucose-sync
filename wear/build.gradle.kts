@@ -9,7 +9,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.nimbleflux.glucosesync.wear"
+        applicationId = "com.nimbleflux.glucosesync"
         minSdk = 30
         targetSdk = 36
         versionCode = 2
