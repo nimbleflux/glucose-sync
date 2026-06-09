@@ -12,6 +12,10 @@
         android:theme="@style/Theme.GlucoseSync"
         android:fullBackupContent="@xml/backup_rules">
 
+        <meta-data
+            android:name="com.google.android.wearable.capabilities"
+            android:resource="@xml/wearable_capabilities" />
+
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"

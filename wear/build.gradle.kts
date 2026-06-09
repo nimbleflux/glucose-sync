@@ -18,10 +18,10 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file(System.getenv("KEYSTORE_FILE") ?: "release.keystore")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
-            keyAlias = System.getenv("KEY_ALIAS") ?: "glucosesync"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+            storeFile = file(System.getenv("KEYSTORE_FILE") ?: "../keys/nimbleflux.jks")
+            storePassword = providers.environmentVariable("KEYSTORE_PASSWORD").getOrElse("")
+            keyAlias = providers.environmentVariable("KEY_ALIAS").getOrElse("nimbleflux")
+            keyPassword = providers.environmentVariable("KEY_PASSWORD").getOrElse("")
         }
     }
 
