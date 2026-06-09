@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.nimbleflux.medtrumwatch.shared"
+    namespace = "com.nimbleflux.glucosesync.shared"
     compileSdk = 36
 
     defaultConfig {

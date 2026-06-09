@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.nimbleflux.medtrumwatch.wear"
+    namespace = "com.nimbleflux.glucosesync.wear"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.nimbleflux.medtrumwatch.wear"
+        applicationId = "com.nimbleflux.glucosesync.wear"
         minSdk = 30
         targetSdk = 36
         versionCode = 1
