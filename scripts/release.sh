@@ -51,10 +51,10 @@ NEW_CODE=$((CURRENT_CODE + 1))
 
 echo "Bumping: $CURRENT_VERSION ($CURRENT_CODE) → $NEW_VERSION ($NEW_CODE)"
 
-sed -i '' "s/versionCode = $CURRENT_CODE/versionCode = $NEW_CODE/" "$APP_GRADLE"
-sed -i '' "s/versionName = \"$CURRENT_VERSION\"/versionName = \"$NEW_VERSION\"/" "$APP_GRADLE"
-sed -i '' "s/versionCode = $CURRENT_CODE/versionCode = $NEW_CODE/" "$WEAR_GRADLE"
-sed -i '' "s/versionName = \"$CURRENT_VERSION\"/versionName = \"$NEW_VERSION\"/" "$WEAR_GRADLE"
+sed -i.bak "s/versionCode = $CURRENT_CODE/versionCode = $NEW_CODE/" "$APP_GRADLE" && rm -f "$APP_GRADLE.bak"
+sed -i.bak "s/versionName = \"$CURRENT_VERSION\"/versionName = \"$NEW_VERSION\"/" "$APP_GRADLE" && rm -f "$APP_GRADLE.bak"
+sed -i.bak "s/versionCode = $CURRENT_CODE/versionCode = $NEW_CODE/" "$WEAR_GRADLE" && rm -f "$WEAR_GRADLE.bak"
+sed -i.bak "s/versionName = \"$CURRENT_VERSION\"/versionName = \"$NEW_VERSION\"/" "$WEAR_GRADLE" && rm -f "$WEAR_GRADLE.bak"
 
 git add "$APP_GRADLE" "$WEAR_GRADLE"
 git commit -m "chore(release): v$NEW_VERSION"
