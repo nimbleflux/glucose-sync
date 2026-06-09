@@ -1,0 +1,29 @@
+{
+  "name": "GlucoseSync Android Dev",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "postCreateCommand": "echo 'sdk.dir=/opt/android-sdk' > local.properties && chmod +x scripts/*.sh",
+  "forwardPorts": [5555],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "fwcd.kotlin",
+        "vscjava.vscode-java-pack",
+        "vscjava.vscode-gradle"
+      ],
+      "settings": {
+        "kotlin.languageServer.enabled": true,
+        "files.exclude": {
+          "**/.gradle": true,
+          "**/build": true
+        }
+      }
+    }
+  },
+  "remoteEnv": {
+    "ANDROID_HOME": "/opt/android-sdk",
+    "ANDROID_SDK_ROOT": "/opt/android-sdk",
+    "JAVA_HOME": "/usr/local/sdkman/candidates/java/current"
+  }
+}

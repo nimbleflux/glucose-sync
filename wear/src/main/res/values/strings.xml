@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">GlucoseSync</string>
+
+    <!-- Main screen -->
+    <string name="glucose_demo">DEMO</string>
+    <string name="glucose_stale">STALE</string>
+    <string name="waiting_for_data">Waiting for data\u2026</string>
+
+    <!-- Complication -->
+    <string name="complication_title_glucose">Glucose</string>
+    <string name="complication_content_description_glucose">Glucose %1$s %2$s</string>
+    <string name="complication_content_description_glucose_range">Glucose %1$s target range</string>
+    <string name="complication_preview_glucose_text">5.6</string>
+    <string name="complication_preview_glucose_content_description">Glucose 5.6 mmol/L</string>
+</resources>

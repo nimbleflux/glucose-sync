@@ -1,0 +1,239 @@
+package com.nimbleflux.medtrumwatch.shared.provider.libre
+
+import android.content.Context
+import com.nimbleflux.medtrumwatch.shared.data.CredentialStore
+import com.nimbleflux.medtrumwatch.shared.domain.GlucoseHistoryPoint
+import com.nimbleflux.medtrumwatch.shared.domain.GlucoseSnapshot
+import com.nimbleflux.medtrumwatch.shared.domain.TrendArrow
+import com.nimbleflux.medtrumwatch.shared.provider.*
+import kotlinx.coroutines.flow.SharedFlow
+
+class LibreLinkUpProvider(private val context: Context, private val debug: Boolean = false) : GlucoseProvider {
+
+    override val id = "libre_linkup"
+    override val displayName = "LibreLinkUp"
+    override val authType = AuthType.USERNAME_PASSWORD
+    override val realtimeFlow: SharedFlow<GlucoseSnapshot>? = null
+    override fun supportsHistory(): Boolean = true
+
+    private val credentialStore = CredentialStore(context)
+
+    private var token: String = ""
+    private var tokenExpires: Long = 0
+    private var userId: String = ""
+    private var accountId: String = ""
+    private var regionUrl: String = ""
+    private var patientId: String = ""
+    private var patientName: String = ""
+    private var authenticatedApi: LibreLinkUpApi? = null
+
+    override suspend fun login(credentials: ProviderCredentials): Result<ProviderSession> {
+        val creds = credentials as? ProviderCredentials.UsernamePassword
+            ?: return Result.failure(IllegalArgumentException("LibreLinkUp requires email/password"))
+
+        val baseUrl = creds.baseUrl
+        regionUrl = baseUrl
+
+        return try {
+            val api = LibreApiClient.createUnauthenticated(baseUrl, debug)
+            val response = api.login(LibreLoginRequest(creds.username, creds.password))
+
+            if (response.status == 2) {
+                return Result.failure(Exception("Invalid credentials"))
+            }
+            if (response.status == 4) {
+                return Result.failure(Exception("Terms not accepted. Please accept terms in the LibreLinkUp app first."))
+            }
+
+            val data = response.data ?: return Result.failure(Exception("Empty login response"))
+
+            if (data.redirect && data.region != null) {
+                val correctUrl = LibreRegions.urlForCode(data.region)
+                if (correctUrl != baseUrl) {
+                    regionUrl = correctUrl
+                    return loginWithRedirect(creds.username, creds.password, correctUrl)
+                }
+            }
+
+            val user = data.user ?: return Result.failure(Exception("No user data in response"))
+            val authTicket = data.authTicket ?: return Result.failure(Exception("No auth ticket in response"))
+
+            storeSession(user, authTicket, creds.username, creds.password, creds.baseUrl)
+            buildAuthenticatedApi()
+
+            val connections = fetchConnections()
+            val displayName = if (connections.size == 1) connections[0].fullName else user.firstName
+
+            if (connections.size == 1) {
+                selectPatient(connections.first().patientId)
+            }
+
+            Result.success(
+                ProviderSession(
+                    providerId = id,
+                    displayName = displayName,
+                    data = mapOf(
+                        "userId" to userId,
+                        "connectionCount" to connections.size.toString()
+                    )
+                )
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun loginWithRedirect(email: String, password: String, baseUrl: String): Result<ProviderSession> {
+        return try {
+            val api = LibreApiClient.createUnauthenticated(baseUrl, debug)
+            val response = api.login(LibreLoginRequest(email, password))
+            val data = response.data ?: return Result.failure(Exception("Empty login response after redirect"))
+            val user = data.user ?: return Result.failure(Exception("No user data"))
+            val authTicket = data.authTicket ?: return Result.failure(Exception("No auth ticket"))
+
+            storeSession(user, authTicket, email, password, baseUrl)
+            buildAuthenticatedApi()
+
+            val connections = fetchConnections()
+            val displayName = if (connections.size == 1) connections[0].fullName else user.firstName
+
+            if (connections.size == 1) {
+                selectPatient(connections.first().patientId)
+            }
+
+            Result.success(
+                ProviderSession(
+                    providerId = id,
+                    displayName = displayName,
+                    data = mapOf(
+                        "userId" to userId,
+                        "connectionCount" to connections.size.toString()
+                    )
+                )
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun storeSession(user: LibreUser, authTicket: LibreAuthTicket, email: String, password: String, baseUrl: String) {
+        userId = user.id
+        accountId = LibreCrypto.sha256Hex(user.id)
+        token = authTicket.token
+        tokenExpires = authTicket.expires
+        patientName = user.firstName
+
+        credentialStore.saveCredentials(
+            com.nimbleflux.medtrumwatch.shared.data.Credentials(email, password, baseUrl)
+        )
+        credentialStore.saveLibreSession(token, tokenExpires, userId, accountId, regionUrl)
+    }
+
+    suspend fun getConnections(): List<LibreConnection> {
+        return try {
+            fetchConnections()
+        } catch (_: Exception) { emptyList() }
+    }
+
+    internal suspend fun fetchConnections(): List<LibreConnection> {
+        val api = authenticatedApi ?: return emptyList()
+        val response = api.getConnections()
+        if (response.status != 0) return emptyList()
+        return response.data ?: emptyList()
+    }
+
+    suspend fun selectPatient(pid: String) {
+        patientId = pid
+        credentialStore.saveLibrePatient(pid)
+    }
+
+    private fun buildAuthenticatedApi() {
+        authenticatedApi = LibreApiClient.createAuthenticated(regionUrl, token, accountId, debug)
+    }
+
+    override suspend fun restoreSession(): Boolean {
+        token = credentialStore.getLibreToken() ?: return false
+        tokenExpires = credentialStore.getLibreTokenExpires()
+        userId = credentialStore.getLibreUserId() ?: return false
+        accountId = credentialStore.getLibreAccountId() ?: return false
+        regionUrl = credentialStore.getLibreRegion() ?: return false
+        patientId = credentialStore.getLibrePatientId() ?: ""
+        patientName = credentialStore.getLibrePatientName() ?: ""
+
+        if (tokenExpires > 0 && System.currentTimeMillis() / 1000 > tokenExpires) {
+            val creds = credentialStore.getCredentials() ?: return false
+            val result = login(ProviderCredentials.UsernamePassword(creds.username, creds.password, creds.baseUrl))
+            return result.isSuccess
+        }
+
+        buildAuthenticatedApi()
+
+        if (patientId.isBlank()) {
+            val connections = fetchConnections()
+            if (connections.size == 1) {
+                selectPatient(connections.first().patientId)
+            }
+        }
+
+        return true
+    }
+
+    override suspend fun fetchGlucose(): Result<GlucoseSnapshot> {
+        val api = authenticatedApi ?: return Result.failure(Exception("Not logged in"))
+        val pid = patientId.ifBlank { return Result.failure(Exception("No patient selected")) }
+
+        return try {
+            val response = api.getGraph(pid)
+            if (response.status != 0) {
+                return Result.failure(Exception("Graph request failed with status ${response.status}"))
+            }
+
+            val data = response.data ?: return Result.failure(Exception("No graph data"))
+            val connection = data.connection
+            val graphData = data.graphData ?: emptyList()
+
+            val latestMeasurement = connection?.glucoseMeasurement
+            val glucoseMmol = latestMeasurement?.ValueInMgPerDl?.let { it / 18.0 }
+            val timestamp = LibreTimestamp.parseToEpochSeconds(latestMeasurement?.FactoryTimestamp ?: latestMeasurement?.Timestamp)
+            val sensorActive = connection?.sensorActive ?: false
+            val trend = mapTrend(latestMeasurement?.TrendArrow)
+
+            val history = graphData.mapNotNull { point ->
+                val ts = LibreTimestamp.parseToEpochSeconds(point.FactoryTimestamp ?: point.Timestamp)
+                val mg = point.ValueInMgPerDl ?: return@mapNotNull null
+                if (ts > 0) GlucoseHistoryPoint(ts, mg / 18.0) else null
+            }.distinctBy { it.timestamp }.sortedBy { it.timestamp }
+
+            Result.success(
+                GlucoseSnapshot(
+                    glucose = glucoseMmol,
+                    timestamp = if (timestamp > 0) timestamp else System.currentTimeMillis() / 1000,
+                    trend = trend,
+                    unit = "mmol/L",
+                    sensorActive = sensorActive,
+                    history = history
+                )
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override fun logout() {
+        token = ""
+        tokenExpires = 0
+        userId = ""
+        accountId = ""
+        patientId = ""
+        authenticatedApi = null
+    }
+
+    private fun mapTrend(arrow: Int?): TrendArrow = when (arrow) {
+        1 -> TrendArrow.RISING_RAPIDLY
+        2 -> TrendArrow.RISING
+        3 -> TrendArrow.STABLE
+        4 -> TrendArrow.FALLING
+        5 -> TrendArrow.FALLING_RAPIDLY
+        else -> TrendArrow.UNKNOWN
+    }
+}

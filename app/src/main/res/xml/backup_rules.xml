@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="sharedpref" path="credentials_encrypted.xml" />
+    <exclude domain="sharedpref" path="settings_encrypted.xml" />
+    <exclude domain="sharedpref" path="credentials.xml" />
+    <exclude domain="sharedpref" path="settings.xml" />
+</full-backup-content>

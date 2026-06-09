@@ -1,0 +1,89 @@
+<resources>
+    <string name="app_name">GlucoseSync</string>
+
+    <string name="content_desc_back">Back</string>
+    <string name="content_desc_refresh">Refresh</string>
+    <string name="content_desc_settings">Settings</string>
+
+    <string name="sign_out">Sign out</string>
+    <string name="badge_demo">DEMO</string>
+    <string name="updated_at">Updated %s</string>
+    <string name="history_24h">History (24h)</string>
+    <string name="stat_time_in_range">Time in range</string>
+    <string name="stat_average">Average</string>
+    <string name="stat_high">High</string>
+    <string name="stat_low">Low</string>
+    <string name="no_sensor_data">No sensor data</string>
+    <string name="waiting_for_readings">Waiting for glucose readings</string>
+    <string name="checklist_sensor_active">Ensure your sensor is active</string>
+    <string name="checklist_open_easysense">Open EasySense on your phone</string>
+    <string name="checklist_data_syncs">Data syncs automatically</string>
+
+    <string name="sign_in_to_provider">Sign in to your %s account</string>
+    <string name="field_email">Email</string>
+    <string name="field_password">Password</string>
+    <string name="field_region">Region</string>
+    <string name="sign_in">Sign in</string>
+    <string name="provider_not_supported">This provider is not yet supported.</string>
+    <string name="credentials_privacy_note">Your credentials are stored locally and never shared.</string>
+    <string name="region_europe_global">Europe / Global</string>
+    <string name="region_france">France</string>
+
+    <string name="select_your_cgm">Select your CGM</string>
+    <string name="choose_cgm_description">Choose your glucose monitoring system</string>
+    <string name="separator_or">  or  </string>
+    <string name="try_demo">Try demo</string>
+    <string name="badge_supported">Supported</string>
+    <string name="coming_soon">Coming soon</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_glucose_unit">Glucose unit</string>
+    <string name="settings_glucose_unit_desc">Choose how glucose values are displayed</string>
+    <string name="unit_mmol_description">Millimoles per liter</string>
+    <string name="unit_mgdl_description">Milligrams per deciliter</string>
+    <string name="settings_alerts">Alerts</string>
+    <string name="settings_alerts_desc">Configure high and low glucose alerts</string>
+    <string name="settings_enable_alerts">Enable alerts</string>
+    <string name="settings_enable_alerts_desc">Get notified when glucose is out of range</string>
+    <string name="settings_override_dnd">Override Do Not Disturb</string>
+    <string name="settings_override_dnd_desc">Alerts will always sound, even in DND mode</string>
+    <string name="settings_sound">Sound</string>
+    <string name="settings_sound_desc">Play alarm sound with alerts</string>
+    <string name="settings_vibration">Vibration</string>
+    <string name="settings_vibration_desc">Vibrate device with alerts</string>
+    <string name="settings_vibration_duration">Vibration duration</string>
+    <string name="settings_thresholds">Thresholds (%s)</string>
+    <string name="settings_high_threshold">High threshold</string>
+    <string name="settings_low_threshold">Low threshold</string>
+    <string name="settings_repeat_every">Repeat every</string>
+    <string name="settings_conversion_factor">Conversion factor</string>
+    <string name="settings_conversion_formula">1 mmol/L = 18 mg/dL</string>
+    <string name="settings_privacy_data">Privacy &amp; Data</string>
+    <string name="settings_privacy_data_desc">How your data is handled</string>
+    <string name="privacy_stored_locally">Stored locally</string>
+    <string name="privacy_stored_locally_detail">Your login credentials and glucose data are stored only on this device. Nothing is sent to NimbleFlux servers.</string>
+    <string name="privacy_third_party">Third-party APIs</string>
+    <string name="privacy_third_party_detail">Glucose readings are fetched directly from your CGM provider\'s cloud (e.g. Medtrum EasyView, LibreLinkUp). Your credentials are sent only to the provider you choose.</string>
+    <string name="privacy_watch_sync">Watch sync</string>
+    <string name="privacy_watch_sync_detail">Glucose data is shared with your paired Wear OS watch via a direct local connection. No cloud intermediary.</string>
+    <string name="privacy_no_analytics">No analytics or tracking</string>
+    <string name="privacy_no_analytics_detail">GlucoseSync does not collect, transmit, or share any personal data, usage analytics, or crash reports.</string>
+    <string name="medical_disclaimer">GlucoseSync is not a medical device. Always verify readings with your CGM before making treatment decisions.</string>
+
+    <string name="select_patient">Select patient</string>
+    <string name="select_patient_desc">You follow multiple patients. Choose which one to monitor.</string>
+    <string name="badge_active">Active</string>
+    <string name="badge_inactive">Inactive</string>
+
+    <string name="notification_channel_monitoring">Glucose Monitoring</string>
+    <string name="notification_channel_monitoring_desc">Keeping glucose data in sync with your watch</string>
+    <string name="notification_monitoring_glucose">Monitoring glucose…</string>
+
+    <string name="alert_high_title">Glucose is high</string>
+    <string name="alert_low_title">Glucose is low</string>
+    <string name="alert_comparison_above">above</string>
+    <string name="alert_comparison_below">below</string>
+    <string name="alert_threshold_text">%1$.1f %2$s — %3$s threshold of %4$.1f</string>
+    <string name="notification_channel_alert">Glucose alert</string>
+    <string name="notification_channel_alert_desc">Glucose threshold alerts</string>
+</resources>
