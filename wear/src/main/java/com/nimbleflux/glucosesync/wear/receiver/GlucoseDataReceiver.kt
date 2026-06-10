@@ -9,7 +9,7 @@ import com.nimbleflux.glucosesync.wear.repository.GlucoseRepository
 
 class GlucoseDataReceiver : WearableListenerService() {
 
-    private val repo by lazy { GlucoseRepository(this) }
+    private val repo by lazy { GlucoseRepository.getInstance(this) }
 
     override fun onDataChanged(dataEvents: DataEventBuffer) {
         for (event in dataEvents) {

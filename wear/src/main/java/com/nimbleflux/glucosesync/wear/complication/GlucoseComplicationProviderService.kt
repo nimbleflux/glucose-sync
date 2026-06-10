@@ -12,7 +12,7 @@ import com.nimbleflux.glucosesync.wear.ui.MainActivity
 
 class GlucoseComplicationProviderService : ComplicationDataSourceService() {
 
-    private val repo by lazy { GlucoseRepository(this) }
+    private val repo by lazy { GlucoseRepository.getInstance(this) }
 
     private val prefs: SharedPreferences by lazy {
         getSharedPreferences("complication_config", MODE_PRIVATE)
@@ -33,12 +33,8 @@ class GlucoseComplicationProviderService : ComplicationDataSourceService() {
         }
 
         val highMmol = prefs.getFloat("high_threshold_mmol", 10.0f)
-        val lowMmol = prefs.getFloat("low_threshold_mmol", 3.9f)
         val isMmol = unit == "mmol/L"
         val maxVal = if (isMmol) highMmol * 1.5f else highMmol * 1.5f * 18f
-        val highVal = if (isMmol) highMmol else highMmol * 18f
-        val lowVal = if (isMmol) lowMmol else lowMmol * 18f
-        val midVal = (highVal + lowVal) / 2f
         val displayGlucose = if (isMmol) glucose else glucose * 18f
 
         val glucoseText = String.format("%.1f", displayGlucose)
@@ -75,28 +71,6 @@ class GlucoseComplicationProviderService : ComplicationDataSourceService() {
                 PlainComplicationText.Builder(displayText).build()
             ).setTapAction(tapAction).build()
 
-            ComplicationType.GOAL_PROGRESS -> GoalProgressComplicationData.Builder(
-                value = displayGlucose,
-                targetValue = midVal,
-                contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_glucose_range, glucoseText)).build()
-            ).setText(
-                PlainComplicationText.Builder(displayText).build()
-            ).setTapAction(tapAction).build()
-
-            ComplicationType.WEIGHTED_ELEMENTS -> {
-                val inRange = displayGlucose in lowVal..highVal
-                val color = if (inRange) 0xFF4CAF50.toInt() else 0xFFF44336.toInt()
-                val elements = listOf(
-                    WeightedElementsComplicationData.Element(1.0f, color)
-                )
-                WeightedElementsComplicationData.Builder(
-                    elements = elements,
-                    contentDescription = PlainComplicationText.Builder(glucoseContentDesc).build()
-                ).setText(
-                    PlainComplicationText.Builder(displayText).build()
-                ).setTapAction(tapAction).build()
-            }
-
             else -> {
                 listener.onComplicationData(NoDataComplicationData())
                 return
@@ -114,19 +88,16 @@ class GlucoseComplicationProviderService : ComplicationDataSourceService() {
                 text = PlainComplicationText.Builder(previewText).build(),
                 contentDescription = PlainComplicationText.Builder(previewDesc).build()
             ).build()
+            ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
+                text = PlainComplicationText.Builder(previewText).build(),
+                contentDescription = PlainComplicationText.Builder(previewDesc).build()
+            ).setTitle(
+                PlainComplicationText.Builder(getString(R.string.complication_title_glucose)).build()
+            ).build()
             ComplicationType.RANGED_VALUE -> RangedValueComplicationData.Builder(
                 value = 5.6f,
                 min = 0.0f,
                 max = 22.0f,
-                contentDescription = PlainComplicationText.Builder(previewDesc).build()
-            ).setText(PlainComplicationText.Builder(previewText).build()).build()
-            ComplicationType.GOAL_PROGRESS -> GoalProgressComplicationData.Builder(
-                value = 5.6f,
-                targetValue = 7.0f,
-                contentDescription = PlainComplicationText.Builder(previewDesc).build()
-            ).setText(PlainComplicationText.Builder(previewText).build()).build()
-            ComplicationType.WEIGHTED_ELEMENTS -> WeightedElementsComplicationData.Builder(
-                elements = listOf(WeightedElementsComplicationData.Element(1.0f, 0xFF4CAF50.toInt())),
                 contentDescription = PlainComplicationText.Builder(previewDesc).build()
             ).setText(PlainComplicationText.Builder(previewText).build()).build()
             else -> NoDataComplicationData()

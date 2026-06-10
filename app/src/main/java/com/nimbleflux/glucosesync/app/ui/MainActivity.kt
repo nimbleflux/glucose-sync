@@ -3,8 +3,10 @@ package com.nimbleflux.glucosesync.app.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -50,6 +52,8 @@ class MainActivity : ComponentActivity() {
                     } else {
                         startPollingService(context)
                     }
+
+                    requestBatteryOptimizationExemption(context)
                 }
             }
 
@@ -154,6 +158,19 @@ class MainActivity : ComponentActivity() {
             context.startForegroundService(intent)
         } else {
             context.startService(intent)
+        }
+    }
+
+    private fun requestBatteryOptimizationExemption(context: android.content.Context) {
+        val pm = context.getSystemService(POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
+            try {
+                val intent = Intent(
+                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:${context.packageName}")
+                )
+                context.startActivity(intent)
+            } catch (_: Exception) { }
         }
     }
 }

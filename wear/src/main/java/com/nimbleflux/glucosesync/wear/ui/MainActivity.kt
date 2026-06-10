@@ -28,7 +28,7 @@ import com.nimbleflux.glucosesync.wear.repository.WatchGlucoseState
 
 class MainActivity : ComponentActivity() {
 
-    private val repo by lazy { GlucoseRepository(this) }
+    private val repo by lazy { GlucoseRepository.getInstance(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,15 +74,6 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .fillMaxWidth(0.85f)
                                 .height(56.dp)
-                        )
-                    }
-
-                    if (state.isDemo) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = stringResource(R.string.glucose_demo),
-                            fontSize = 9.sp,
-                            color = MaterialTheme.colors.onSurfaceVariant
                         )
                     }
                 } else if (state.glucose > 0.0 && state.isStale) {
