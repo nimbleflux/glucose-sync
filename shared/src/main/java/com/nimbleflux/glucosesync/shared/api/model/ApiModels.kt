@@ -106,3 +106,28 @@ data class DashboardData(
     val target_low: Double? = null,
     val data_source: String = ""
 )
+
+@Serializable
+data class MonitorConnectionsResponse(
+    val error: Int = -1,
+    val data: MonitorConnectionsData? = null
+)
+
+@Serializable
+data class MonitorConnectionsData(
+    val items: List<MonitorConnection> = emptyList(),
+    val pages: Int = 0,
+    val has_next: Boolean = false,
+    val has_prev: Boolean = false
+)
+
+@Serializable
+data class MonitorConnection(
+    val uid: Long = 0,
+    val alias: String = "",
+    val real_name: String = "",
+    val sensor_status: SensorStatus = SensorStatus(),
+    val pump_status: PumpStatus = PumpStatus()
+) {
+    val displayName: String get() = alias.ifBlank { real_name }
+}

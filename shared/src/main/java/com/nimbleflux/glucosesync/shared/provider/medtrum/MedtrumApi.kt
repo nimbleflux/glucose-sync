@@ -8,6 +8,9 @@ interface MedtrumApi {
     @Headers("Content-Type: application/json")
     suspend fun login(@Body request: LoginRequest): LoginResponse
 
+    @GET("api/v2.1/monitor/connections")
+    suspend fun getConnections(): MonitorConnectionsResponse
+
     @GET("api/v2.1/monitor/{uid}/status")
     suspend fun getStatus(
         @Path("uid") uid: Long,

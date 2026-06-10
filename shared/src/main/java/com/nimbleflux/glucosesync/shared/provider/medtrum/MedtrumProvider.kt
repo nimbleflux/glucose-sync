@@ -9,8 +9,16 @@ import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
 import com.nimbleflux.glucosesync.shared.domain.TrendArrow
 import com.nimbleflux.glucosesync.shared.provider.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.long
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -35,6 +43,8 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
 
     private var uid: Long = 0
     private var realname: String = ""
+    private var userType: String = ""
+    private var monitorUid: Long = 0
     private var api: MedtrumApi? = null
 
     override suspend fun login(credentials: ProviderCredentials): Result<ProviderSession> {
@@ -49,14 +59,25 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
             } else {
                 uid = response.uid
                 realname = response.realname
+                userType = response.user_type
                 api = service
+                monitorUid = uid
                 credentialStore.saveCredentials(Credentials(creds.username, creds.password, creds.baseUrl))
                 credentialStore.saveSession(response.uid, response.realname)
+
+                if (userType == "M") {
+                    val savedPatientUid = credentialStore.getMedtrumPatientUid()
+                    if (savedPatientUid != null && savedPatientUid > 0) {
+                        monitorUid = savedPatientUid
+                    }
+                }
+
+                val displayName = if (userType == "M") realname else response.realname
                 Result.success(
                     ProviderSession(
                         providerId = id,
-                        displayName = response.realname,
-                        data = mapOf("uid" to response.uid.toString(), "realname" to response.realname)
+                        displayName = displayName,
+                        data = mapOf("uid" to response.uid.toString(), "realname" to response.realname, "user_type" to response.user_type)
                     )
                 )
             }
@@ -75,11 +96,38 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
         }
     }
 
+    fun isCarer(): Boolean = userType == "M"
+
+    suspend fun getConnections(): List<MonitorConnection> {
+        val service = api ?: return emptyList()
+        return try {
+            val response = service.getConnections()
+            if (response.error == 0 && response.data != null) {
+                response.data.items
+            } else {
+                emptyList()
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun selectPatient(patientUid: Long, patientName: String? = null) {
+        monitorUid = patientUid
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            credentialStore.saveMedtrumPatientUid(patientUid)
+            if (patientName != null) {
+                credentialStore.saveMedtrumPatientName(patientName)
+                credentialStore.saveSessionDisplayName(patientName)
+            }
+        }
+    }
+
     override suspend fun fetchGlucose(): Result<GlucoseSnapshot> {
         return try {
             val service = api ?: return Result.failure(Exception("Not logged in"))
             val param = buildTodayParam()
-            val response = service.getStatus(uid, param)
+            val response = service.getStatus(monitorUid, param)
             if (response.error != 0 || response.data == null) {
                 Result.failure(Exception("Status failed with error: ${response.error}"))
             } else {
@@ -88,14 +136,17 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
                 val glucose = sensor.glucose
                 val hasSensor = glucose != null && glucose > 0
 
+                val history = parseSgHistory(chart.sg)
+                val trend = computeTrend(glucose, history)
+
                 Result.success(
                     GlucoseSnapshot(
                         glucose = glucose,
                         timestamp = sensor.updateTime ?: System.currentTimeMillis() / 1000,
-                        trend = if (hasSensor) mapTrend(glucose, chart) else TrendArrow.UNKNOWN,
+                        trend = if (hasSensor) trend else TrendArrow.UNKNOWN,
                         unit = chart.glucose_unit.ifEmpty { "mmol/L" },
                         sensorActive = hasSensor,
-                        history = emptyList()
+                        history = history
                     )
                 )
             }
@@ -112,8 +163,29 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
 
     fun getRealname(): String = realname
 
-    private fun mapTrend(glucose: Double?, chart: ChartData): TrendArrow {
-        return TrendArrow.UNKNOWN
+    private fun parseSgHistory(sg: List<kotlinx.serialization.json.JsonElement>): List<GlucoseHistoryPoint> {
+        return sg.mapNotNull { element ->
+            val arr = element as? JsonArray ?: return@mapNotNull null
+            if (arr.size < 2) return@mapNotNull null
+            val ts = ((arr[0] as? JsonPrimitive)?.doubleOrNull?.toLong()) ?: return@mapNotNull null
+            val glucose = (arr[1] as? JsonPrimitive)?.doubleOrNull ?: return@mapNotNull null
+            if (ts > 0 && glucose > 0) GlucoseHistoryPoint(ts, glucose) else null
+        }.distinctBy { it.timestamp }.sortedBy { it.timestamp }
+    }
+
+    private fun computeTrend(currentGlucose: Double?, history: List<GlucoseHistoryPoint>): TrendArrow {
+        if (currentGlucose == null || history.size < 2) return TrendArrow.UNKNOWN
+        val now = System.currentTimeMillis() / 1000
+        val windowStart = now - 900
+        val recent = history.filter { it.timestamp >= windowStart }
+        if (recent.size < 2) return TrendArrow.UNKNOWN
+        val oldest = recent.first()
+        val newest = recent.last()
+        val timeDeltaMinutes = (newest.timestamp - oldest.timestamp) / 60.0
+        if (timeDeltaMinutes < 1) return TrendArrow.UNKNOWN
+        val delta = newest.glucoseMmol - oldest.glucoseMmol
+        val ratePerMinute = delta / timeDeltaMinutes
+        return TrendArrow.fromRate(ratePerMinute)
     }
 
     private fun buildApi(baseUrl: String): MedtrumApi {

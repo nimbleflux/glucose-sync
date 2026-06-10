@@ -45,6 +45,8 @@ class CredentialStore(context: Context) {
         const val LIBRE_REGION = "libre_region"
         const val LIBRE_PATIENT_ID = "libre_patient_id"
         const val LIBRE_PATIENT_NAME = "libre_patient_name"
+        const val MEDTRUM_PATIENT_UID = "medtrum_patient_uid"
+        const val MEDTRUM_PATIENT_NAME = "medtrum_patient_name"
     }
 
     suspend fun saveCredentials(creds: Credentials) {
@@ -116,6 +118,22 @@ class CredentialStore(context: Context) {
 
     suspend fun saveLibrePatientName(name: String) {
         prefs.edit().putString(Keys.LIBRE_PATIENT_NAME, name).apply()
+    }
+
+    suspend fun saveMedtrumPatientUid(uid: Long) {
+        prefs.edit().putLong(Keys.MEDTRUM_PATIENT_UID, uid).apply()
+    }
+
+    suspend fun getMedtrumPatientUid(): Long {
+        return prefs.getLong(Keys.MEDTRUM_PATIENT_UID, 0L)
+    }
+
+    suspend fun saveMedtrumPatientName(name: String) {
+        prefs.edit().putString(Keys.MEDTRUM_PATIENT_NAME, name).apply()
+    }
+
+    suspend fun getMedtrumPatientName(): String? {
+        return prefs.getString(Keys.MEDTRUM_PATIENT_NAME, null)
     }
 
     suspend fun clear() {

@@ -15,6 +15,7 @@ import com.nimbleflux.glucosesync.shared.provider.GlucoseProvider
 import com.nimbleflux.glucosesync.shared.provider.ProviderCredentials
 import com.nimbleflux.glucosesync.shared.provider.ProviderRegistry
 import com.nimbleflux.glucosesync.shared.provider.libre.LibreLinkUpProvider
+import com.nimbleflux.glucosesync.shared.provider.medtrum.MedtrumProvider
 import com.nimbleflux.glucosesync.app.ui.PatientInfo
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.PutDataMapRequest
@@ -129,6 +130,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (restored) {
                     val displayName = credentialStore.getSessionDisplayName() ?: ""
                     _uiState.update { it.copy(isLoggedIn = true, realname = displayName) }
+
+                    if (p is MedtrumProvider && p.isCarer()) {
+                        val savedPatientUid = credentialStore.getMedtrumPatientUid()
+                        if (savedPatientUid > 0) {
+                            val savedPatientName = credentialStore.getMedtrumPatientName()
+                            p.selectPatient(savedPatientUid, savedPatientName)
+                            if (savedPatientName != null) {
+                                _uiState.update { it.copy(realname = savedPatientName) }
+                            }
+                        } else {
+                            val connections = p.getConnections()
+                            if (connections.isNotEmpty()) {
+                                val conn = connections[0]
+                                p.selectPatient(conn.uid, conn.displayName)
+                                _uiState.update { it.copy(realname = conn.displayName) }
+                            }
+                        }
+                    } else if (p is LibreLinkUpProvider) {
+                        val savedPatientId = credentialStore.getLibrePatientId()
+                        if (savedPatientId != null) {
+                            p.selectPatient(savedPatientId)
+                        }
+                    }
+
                     refreshGlucose()
                 }
             }
@@ -196,6 +221,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             it.copy(isLoading = false, showPatientPicker = true, patients = patientInfos)
                         }
                     }
+                } else if (p is MedtrumProvider && p.isCarer()) {
+                    val connections = p.getConnections()
+                    if (connections.isEmpty()) {
+                        _uiState.update { it.copy(isLoading = false, error = "No monitored patients found") }
+                        return@launch
+                    }
+                    if (connections.size == 1) {
+                        val conn = connections[0]
+                        p.selectPatient(conn.uid, conn.displayName)
+                        _uiState.update {
+                            it.copy(isLoggedIn = true, isLoading = false, realname = conn.displayName)
+                        }
+                        refreshGlucose()
+                    } else {
+                        val unit = _uiState.value.glucoseUnit
+                        val patientInfos = connections.map { conn ->
+                            val glucoseMmol = conn.sensor_status.glucose
+                            PatientInfo(
+                                patientId = conn.uid.toString(),
+                                firstName = conn.displayName,
+                                lastName = "",
+                                sensorActive = glucoseMmol != null && glucoseMmol > 0,
+                                lastGlucose = if (unit == "mg/dL") {
+                                    glucoseMmol?.let { g -> "%.0f".format(g * 18) } ?: ""
+                                } else {
+                                    glucoseMmol?.let { g -> "%.1f".format(g) } ?: ""
+                                },
+                                displayUnit = unit
+                            )
+                        }
+                        _uiState.update {
+                            it.copy(isLoading = false, showPatientPicker = true, patients = patientInfos)
+                        }
+                    }
                 } else {
                     _uiState.update {
                         it.copy(isLoggedIn = true, isLoading = false, realname = session.displayName)
@@ -214,11 +273,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectPatient(patientId: String) {
-        val p = provider as? LibreLinkUpProvider ?: return
         viewModelScope.launch {
-            p.selectPatient(patientId)
-            credentialStore.saveLibrePatient(patientId)
-            val displayName = credentialStore.getSessionDisplayName() ?: ""
+            val patientName = _uiState.value.patients.find { it.patientId == patientId }?.firstName
+            when (val p = provider) {
+                is LibreLinkUpProvider -> {
+                    p.selectPatient(patientId)
+                    credentialStore.saveLibrePatient(patientId)
+                    if (patientName != null) {
+                        credentialStore.saveSessionDisplayName(patientName)
+                    }
+                }
+                is MedtrumProvider -> {
+                    p.selectPatient(patientId.toLongOrNull() ?: return@launch, patientName)
+                }
+            }
+            val displayName = patientName ?: credentialStore.getSessionDisplayName() ?: ""
             _uiState.update {
                 it.copy(isLoggedIn = true, isLoading = false, showPatientPicker = false, realname = displayName)
             }
