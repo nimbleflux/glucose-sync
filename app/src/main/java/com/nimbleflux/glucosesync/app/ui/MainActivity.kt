@@ -87,6 +87,8 @@ class MainActivity : ComponentActivity() {
                             onAlertVibrateChange = { viewModel.setAlertVibrate(it) },
                             alertVibrateDuration = state.alertVibrateDuration,
                             onAlertVibrateDurationChange = { viewModel.setAlertVibrateDuration(it) },
+                            deltaMinutes = state.deltaMinutes,
+                            onDeltaMinutesChange = { viewModel.setDeltaMinutes(it) },
                             themeMode = state.themeMode,
                             onThemeChange = { viewModel.setThemeMode(it) },
                             showWearInstall = state.watchPaired && !state.wearAppInstalled,

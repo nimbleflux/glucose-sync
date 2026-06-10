@@ -95,4 +95,10 @@ class SettingsStore(context: Context) {
     suspend fun setThemeMode(mode: String) {
         prefs.edit().putString("theme_mode", mode).apply()
     }
+
+    fun getDeltaMinutes(): Int = prefs.getInt("delta_minutes", 5)
+
+    suspend fun setDeltaMinutes(minutes: Int) {
+        prefs.edit().putInt("delta_minutes", minutes).apply()
+    }
 }

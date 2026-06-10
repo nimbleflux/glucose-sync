@@ -40,6 +40,8 @@
     <string name="settings_title">Settings</string>
     <string name="settings_glucose_unit">Glucose unit</string>
     <string name="settings_glucose_unit_desc">Choose how glucose values are displayed</string>
+    <string name="settings_delta_window">Delta window</string>
+    <string name="settings_delta_window_desc">Time period for glucose change (delta) calculation</string>
     <string name="unit_mmol_description">Millimoles per liter</string>
     <string name="unit_mgdl_description">Milligrams per deciliter</string>
     <string name="settings_alerts">Alerts</string>

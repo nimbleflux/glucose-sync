@@ -64,7 +64,8 @@ data class MainUiState(
     val basalRate: Double? = null,
     val lastBolus: Double? = null,
     val lastBolusTime: Long? = null,
-    val remainingDose: Double? = null
+    val remainingDose: Double? = null,
+    val deltaMinutes: Int = 5
 ) {
     val glucoseDisplay: Double?
         get() = glucose?.let { if (glucoseUnit == "mg/dL") it * 18 else it }
@@ -118,6 +119,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val vibrate = settingsStore.getAlertVibrate()
             val vibrateDuration = settingsStore.getAlertVibrateDuration()
             val themeMode = settingsStore.getThemeMode()
+            val deltaMinutes = settingsStore.getDeltaMinutes()
             _uiState.update {
                 it.copy(
                     glucoseUnit = unit,
@@ -129,7 +131,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     alertSound = sound,
                     alertVibrate = vibrate,
                     alertVibrateDuration = vibrateDuration,
-                    themeMode = themeMode
+                    themeMode = themeMode,
+                    deltaMinutes = deltaMinutes
                 )
             }
 
@@ -374,6 +377,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         }
 
                         _uiState.update {
+                            val deltaMin = it.deltaMinutes
+                            val computedDelta = computeDelta(history, deltaMin) ?: snapshot.delta
                             it.copy(
                                 isLoading = false,
                                 glucose = snapshot.glucose,
@@ -383,7 +388,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 error = if (!snapshot.sensorActive) "No active sensor" else null,
                                 history = history,
                                 iob = snapshot.iob,
-                                delta = snapshot.delta,
+                                delta = computedDelta,
                                 batteryPercent = snapshot.batteryPercent,
                                 basalRate = snapshot.basalRate,
                                 lastBolus = snapshot.lastBolus,
@@ -470,6 +475,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun computeDelta(history: List<GlucoseHistoryPoint>, deltaMinutes: Int): Double? {
+        if (history.size < 2) return null
+        val latest = history.last()
+        val targetTime = latest.timestamp - deltaMinutes * 60L
+        val closest = history.filter { it.timestamp <= targetTime }
+            .minByOrNull { Math.abs(it.timestamp - targetTime) }
+            ?: return null
+        return latest.glucoseMmol - closest.glucoseMmol
+    }
+
     private fun computeTrend(currentGlucose: Double?, history: List<GlucoseHistoryPoint>): TrendArrow? {
         if (currentGlucose == null || history.size < 2) return null
         val now = System.currentTimeMillis() / 1000
@@ -497,6 +512,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             settingsStore.setThemeMode(mode)
             _uiState.update { it.copy(themeMode = mode) }
+        }
+    }
+
+    fun setDeltaMinutes(minutes: Int) {
+        viewModelScope.launch {
+            settingsStore.setDeltaMinutes(minutes)
+            _uiState.update { it.copy(deltaMinutes = minutes) }
+            if (_uiState.value.isLoggedIn && !_uiState.value.isDemo) {
+                refreshGlucose()
+            }
         }
     }
 

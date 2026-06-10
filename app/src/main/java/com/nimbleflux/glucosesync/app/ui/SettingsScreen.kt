@@ -41,6 +41,8 @@ fun SettingsScreen(
     onAlertVibrateChange: (Boolean) -> Unit,
     alertVibrateDuration: Int,
     onAlertVibrateDurationChange: (Int) -> Unit,
+    deltaMinutes: Int,
+    onDeltaMinutesChange: (Int) -> Unit,
     themeMode: String,
     onThemeChange: (String) -> Unit,
     showWearInstall: Boolean,
@@ -127,6 +129,37 @@ fun SettingsScreen(
                         }
                         if (unit == "mmol/L") {
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Text(
+                stringResource(R.string.settings_delta_window),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.settings_delta_window_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(1, 5, 10, 15).forEach { mins ->
+                            FilterChip(
+                                selected = deltaMinutes == mins,
+                                onClick = { onDeltaMinutesChange(mins) },
+                                label = { Text("${mins}m") }
+                            )
                         }
                     }
                 }
