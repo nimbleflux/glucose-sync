@@ -98,4 +98,12 @@
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="settings_wear_os">Wear OS</string>
+
+    <string name="stat_delta">Delta</string>
+    <string name="pump_info_title">Pump info</string>
+    <string name="stat_iob">Insulin on board</string>
+    <string name="stat_basal_rate">Basal rate</string>
+    <string name="stat_last_bolus">Last bolus</string>
+    <string name="stat_reservoir">Reservoir</string>
+    <string name="stat_battery">Sensor battery</string>
 </resources>

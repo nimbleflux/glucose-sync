@@ -57,7 +57,14 @@ data class MainUiState(
     val watchPaired: Boolean = false,
     val wearAppInstalled: Boolean = true,
     val wearBannerDismissed: Boolean = false,
-    val themeMode: String = "system"
+    val themeMode: String = "system",
+    val iob: Double? = null,
+    val delta: Double? = null,
+    val batteryPercent: Double? = null,
+    val basalRate: Double? = null,
+    val lastBolus: Double? = null,
+    val lastBolusTime: Long? = null,
+    val remainingDose: Double? = null
 ) {
     val glucoseDisplay: Double?
         get() = glucose?.let { if (glucoseUnit == "mg/dL") it * 18 else it }
@@ -385,7 +392,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 sensorActive = snapshot.sensorActive,
                                 trend = trend.symbol,
                                 error = if (!snapshot.sensorActive) "No active sensor" else null,
-                                history = history
+                                history = history,
+                                iob = snapshot.iob,
+                                delta = snapshot.delta,
+                                batteryPercent = snapshot.batteryPercent,
+                                basalRate = snapshot.basalRate,
+                                lastBolus = snapshot.lastBolus,
+                                lastBolusTime = snapshot.lastBolusTime,
+                                remainingDose = snapshot.remainingDose
                             )
                         }
                         snapshot.glucose?.let { _ ->

@@ -39,6 +39,13 @@ fun GlucoseScreen(
     highThreshold: Double,
     lowThreshold: Double,
     showWearInstallBanner: Boolean,
+    iob: Double?,
+    delta: Double?,
+    batteryPercent: Double?,
+    basalRate: Double?,
+    lastBolus: Double?,
+    lastBolusTime: Long?,
+    remainingDose: Double?,
     onRefresh: () -> Unit,
     onLogout: () -> Unit,
     onSettings: () -> Unit,
@@ -114,7 +121,8 @@ fun GlucoseScreen(
             if (sensorActive && glucose != null) {
                 val displayGlucose = if (unit == "mg/dL") glucose * 18 else glucose
                 ActiveSection(displayGlucose, unit, trend, lastUpdate, history,
-                    highThreshold, lowThreshold, timeInRange, averageGlucose)
+                    highThreshold, lowThreshold, timeInRange, averageGlucose,
+                    iob, delta, batteryPercent, basalRate, lastBolus, lastBolusTime, remainingDose)
             } else {
                 InactiveSection(error)
             }
@@ -170,7 +178,14 @@ private fun ActiveSection(
     highThreshold: Double,
     lowThreshold: Double,
     timeInRange: Int,
-    averageGlucose: Double?
+    averageGlucose: Double?,
+    iob: Double?,
+    delta: Double?,
+    batteryPercent: Double?,
+    basalRate: Double?,
+    lastBolus: Double?,
+    lastBolusTime: Long?,
+    remainingDose: Double?
 ) {
     val inRange = glucose in lowThreshold..highThreshold
     val glucoseColor = when {
@@ -293,6 +308,138 @@ private fun ActiveSection(
             icon = Icons.Filled.ArrowDownward,
             modifier = Modifier.weight(1f)
         )
+    }
+
+    if (delta != null) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainerLowest,
+            tonalElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.ShowChart, contentDescription = null, modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(stringResource(R.string.stat_delta), style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.weight(1f))
+                val sign = if (delta >= 0) "+" else ""
+                Text(
+                    "$sign${String.format("%.1f", delta)} $unit",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+    }
+
+    val hasPumpData = iob != null || basalRate != null || lastBolus != null || remainingDose != null
+    if (hasPumpData) {
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(stringResource(R.string.pump_info_title), style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (iob != null) {
+                StatCard(
+                    title = stringResource(R.string.stat_iob),
+                    value = String.format("%.1f U", iob),
+                    icon = Icons.Filled.WaterDrop,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            if (basalRate != null) {
+                StatCard(
+                    title = stringResource(R.string.stat_basal_rate),
+                    value = String.format("%.2f U/h", basalRate),
+                    icon = Icons.Filled.Speed,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        if (lastBolus != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                tonalElevation = 2.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.Medication, contentDescription = null, modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(stringResource(R.string.stat_last_bolus), style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        String.format("%.1f U", lastBolus),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (lastBolusTime != null && lastBolusTime > 0) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        val bolusSdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+                        Text(
+                            bolusSdf.format(Date(lastBolusTime * 1000)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        if (remainingDose != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                StatCard(
+                    title = stringResource(R.string.stat_reservoir),
+                    value = String.format("%.1f U", remainingDose),
+                    icon = Icons.Filled.Inventory2,
+                    modifier = Modifier.weight(1f)
+                )
+                if (batteryPercent != null) {
+                    StatCard(
+                        title = stringResource(R.string.stat_battery),
+                        value = "${(batteryPercent * 100).toInt()}%",
+                        icon = Icons.Filled.BatteryStd,
+                        modifier = Modifier.weight(1f),
+                        highlight = batteryPercent > 0.25
+                    )
+                }
+            }
+        }
+    } else if (batteryPercent != null) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            StatCard(
+                title = stringResource(R.string.stat_battery),
+                value = "${(batteryPercent * 100).toInt()}%",
+                icon = Icons.Filled.BatteryStd,
+                modifier = Modifier.weight(1f),
+                highlight = batteryPercent > 0.25
+            )
+        }
     }
 }
 

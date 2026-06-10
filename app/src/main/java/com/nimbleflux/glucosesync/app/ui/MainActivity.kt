@@ -118,6 +118,13 @@ class MainActivity : ComponentActivity() {
                             highThreshold = state.highThreshold,
                             lowThreshold = state.lowThreshold,
                             showWearInstallBanner = state.watchPaired && !state.wearAppInstalled && !state.wearBannerDismissed,
+                            iob = state.iob,
+                            delta = state.delta,
+                            batteryPercent = state.batteryPercent,
+                            basalRate = state.basalRate,
+                            lastBolus = state.lastBolus,
+                            lastBolusTime = state.lastBolusTime,
+                            remainingDose = state.remainingDose,
                             onRefresh = { viewModel.refreshGlucose() },
                             onLogout = {
                                 context.stopService(Intent(context, GlucosePollingService::class.java))

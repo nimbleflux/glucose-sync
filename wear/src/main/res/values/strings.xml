@@ -10,4 +10,10 @@
     <string name="complication_content_description_glucose_range">Glucose %1$s target range</string>
     <string name="complication_preview_glucose_text">5.6</string>
     <string name="complication_preview_glucose_content_description">Glucose 5.6 mmol/L</string>
+    <string name="complication_title_iob">IOB</string>
+    <string name="complication_content_description_iob">Insulin on board %1$s units</string>
+    <string name="complication_title_delta">Delta</string>
+    <string name="complication_content_description_delta">Glucose change %1$s</string>
+    <string name="complication_title_battery">Sensor</string>
+    <string name="complication_content_description_battery">Sensor battery %1$s%%</string>
 </resources>

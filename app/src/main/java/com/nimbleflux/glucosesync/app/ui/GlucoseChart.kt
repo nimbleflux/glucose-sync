@@ -40,6 +40,8 @@ fun GlucoseChart(
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
     val tooltipBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f)
     val tooltipFg = MaterialTheme.colorScheme.onSurface
+    val alertColor = MaterialTheme.colorScheme.error
+    val warnColor = Color(0xFFFF9800)
 
     val values = history.map { it.glucoseMmol }
     val minVal = (values.minOrNull() ?: 0.0).coerceAtMost(lowThreshold - 1.0)
@@ -135,43 +137,73 @@ fun GlucoseChart(
             )
         }
 
-        for (i in 0..4) {
-            val x = paddingLeft + chartW * i / 4
+        val stepSec = 10800L
+        val firstLabelTs = ((timeStart.toLong() + stepSec - 1) / stepSec) * stepSec
+        var gridTs = firstLabelTs
+        while (gridTs < now) {
+            val x = xForTimestamp(gridTs)
             drawLine(gridColor, Offset(x, paddingTop), Offset(x, paddingTop + chartH), strokeWidth = 1f)
+            gridTs += stepSec
         }
 
-        val linePath = Path()
         val fillPath = Path()
         for (i in history.indices) {
             val x = xForTimestamp(history[i].timestamp)
             val y = yForValue(history[i].glucoseMmol)
-            if (i == 0) { linePath.moveTo(x, y); fillPath.moveTo(x, y) }
-            else { linePath.lineTo(x, y); fillPath.lineTo(x, y) }
+            if (i == 0) fillPath.moveTo(x, y) else fillPath.lineTo(x, y)
         }
         fillPath.lineTo(xForTimestamp(history.last().timestamp), paddingTop + chartH)
         fillPath.lineTo(xForTimestamp(history.first().timestamp), paddingTop + chartH)
         fillPath.close()
-
         drawPath(fillPath, fillColor)
-        drawPath(linePath, lineColor, style = Stroke(width = 3f))
+
+        val stableColor = lineColor
+        val intervalSec = if (history.size > 1) {
+            (history.last().timestamp - history.first().timestamp).toDouble() / (history.size - 1)
+        } else 300.0
+        val minutesPerPoint = intervalSec / 60.0
+        val fastThreshold = 0.15 * minutesPerPoint
+        val rapidThreshold = 0.25 * minutesPerPoint
+
+        for (i in 1 until history.size) {
+            val prev = history[i - 1]
+            val curr = history[i]
+            val delta = curr.glucoseMmol - prev.glucoseMmol
+            val segColor = when {
+                delta > rapidThreshold -> alertColor
+                delta > fastThreshold -> warnColor
+                delta < -rapidThreshold -> alertColor
+                delta < -fastThreshold -> warnColor
+                else -> stableColor
+            }
+            drawLine(
+                segColor,
+                Offset(xForTimestamp(prev.timestamp), yForValue(prev.glucoseMmol)),
+                Offset(xForTimestamp(curr.timestamp), yForValue(curr.glucoseMmol)),
+                strokeWidth = 3f
+            )
+        }
+
+        for (i in history.indices) {
+            val x = xForTimestamp(history[i].timestamp)
+            val y = yForValue(history[i].glucoseMmol)
+            drawCircle(stableColor, radius = 2.5f, center = Offset(x, y))
+        }
 
         val lastX = xForTimestamp(history.last().timestamp)
         val lastY = yForValue(history.last().glucoseMmol)
-        drawCircle(lineColor, radius = 5f, center = Offset(lastX, lastY))
+        drawCircle(stableColor, radius = 5f, center = Offset(lastX, lastY))
         drawCircle(Color.White, radius = 2.5f, center = Offset(lastX, lastY))
 
-        val xLabelCount = 5
-        for (i in 0 until xLabelCount) {
-            val frac = i.toFloat() / (xLabelCount - 1)
-            val ts = timeStart + windowSec * frac
-            val x = paddingLeft + chartW * frac
-            val closestIdx = history.indices.minByOrNull { Math.abs(history[it].timestamp - ts) } ?: continue
+        var labelTs = firstLabelTs
+        while (labelTs < now) {
+            val x = xForTimestamp(labelTs)
+            val cal = Calendar.getInstance().apply { timeInMillis = labelTs * 1000 }
+            val label = String.format("%d:%02d", cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
             drawContext.canvas.nativeCanvas.drawText(
-                sdf.format(Date(history[closestIdx].timestamp * 1000)),
-                x,
-                paddingTop + chartH + textSizePx + 4f,
-                axisPaintCenter
+                label, x, paddingTop + chartH + textSizePx + 4f, axisPaintCenter
             )
+            labelTs += stepSec
         }
 
         if (hoveredIndex in history.indices) {
