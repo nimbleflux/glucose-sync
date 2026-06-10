@@ -144,20 +144,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _uiState.update { it.copy(isLoggedIn = true, realname = displayName) }
 
                     if (p is MedtrumProvider && p.isCarer()) {
-                        val savedPatientUid = credentialStore.getMedtrumPatientUid()
-                        if (savedPatientUid > 0) {
-                            val savedPatientName = credentialStore.getMedtrumPatientName()
-                            p.selectPatient(savedPatientUid, savedPatientName)
-                            if (savedPatientName != null) {
-                                _uiState.update { it.copy(realname = savedPatientName) }
-                            }
-                        } else {
-                            val connections = p.getConnections()
-                            if (connections.isNotEmpty()) {
-                                val conn = connections[0]
-                                p.selectPatient(conn.uid, conn.displayName)
-                                _uiState.update { it.copy(realname = conn.displayName) }
-                            }
+                        val savedPatientName = credentialStore.getMedtrumPatientName()
+                        if (savedPatientName != null) {
+                            _uiState.update { it.copy(realname = savedPatientName) }
                         }
                     } else if (p is LibreLinkUpProvider) {
                         val savedPatientId = credentialStore.getLibrePatientId()

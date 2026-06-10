@@ -65,13 +65,6 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
                 credentialStore.saveCredentials(Credentials(creds.username, creds.password, creds.baseUrl))
                 credentialStore.saveSession(response.uid, response.realname)
 
-                if (userType == "M") {
-                    val savedPatientUid = credentialStore.getMedtrumPatientUid()
-                    if (savedPatientUid != null && savedPatientUid > 0) {
-                        monitorUid = savedPatientUid
-                    }
-                }
-
                 val displayName = if (userType == "M") realname else response.realname
                 Result.success(
                     ProviderSession(
@@ -90,6 +83,16 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
         val creds = credentialStore.getCredentials() ?: return false
         return try {
             val result = login(ProviderCredentials.UsernamePassword(creds.username, creds.password, creds.baseUrl))
+            if (result.isSuccess && isCarer()) {
+                val savedPatientUid = credentialStore.getMedtrumPatientUid()
+                if (savedPatientUid > 0) {
+                    monitorUid = savedPatientUid
+                    val savedName = credentialStore.getMedtrumPatientName()
+                    if (savedName != null) {
+                        credentialStore.saveSessionDisplayNameSync(savedName)
+                    }
+                }
+            }
             result.isSuccess
         } catch (_: Exception) {
             false
@@ -114,12 +117,10 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
 
     fun selectPatient(patientUid: Long, patientName: String? = null) {
         monitorUid = patientUid
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            credentialStore.saveMedtrumPatientUid(patientUid)
-            if (patientName != null) {
-                credentialStore.saveMedtrumPatientName(patientName)
-                credentialStore.saveSessionDisplayName(patientName)
-            }
+        credentialStore.saveMedtrumPatientUidSync(patientUid)
+        if (patientName != null) {
+            credentialStore.saveMedtrumPatientNameSync(patientName)
+            credentialStore.saveSessionDisplayNameSync(patientName)
         }
     }
 

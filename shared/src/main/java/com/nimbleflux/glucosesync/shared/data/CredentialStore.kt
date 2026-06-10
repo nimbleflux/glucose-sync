@@ -124,7 +124,15 @@ class CredentialStore(context: Context) {
         prefs.edit().putLong(Keys.MEDTRUM_PATIENT_UID, uid).apply()
     }
 
+    fun saveMedtrumPatientUidSync(uid: Long) {
+        prefs.edit().putLong(Keys.MEDTRUM_PATIENT_UID, uid).commit()
+    }
+
     suspend fun getMedtrumPatientUid(): Long {
+        return prefs.getLong(Keys.MEDTRUM_PATIENT_UID, 0L)
+    }
+
+    fun getMedtrumPatientUidSync(): Long {
         return prefs.getLong(Keys.MEDTRUM_PATIENT_UID, 0L)
     }
 
@@ -132,8 +140,20 @@ class CredentialStore(context: Context) {
         prefs.edit().putString(Keys.MEDTRUM_PATIENT_NAME, name).apply()
     }
 
+    fun saveMedtrumPatientNameSync(name: String) {
+        prefs.edit().putString(Keys.MEDTRUM_PATIENT_NAME, name).commit()
+    }
+
     suspend fun getMedtrumPatientName(): String? {
         return prefs.getString(Keys.MEDTRUM_PATIENT_NAME, null)
+    }
+
+    fun getMedtrumPatientNameSync(): String? {
+        return prefs.getString(Keys.MEDTRUM_PATIENT_NAME, null)
+    }
+
+    fun saveSessionDisplayNameSync(name: String) {
+        prefs.edit().putString(Keys.SESSION_DISPLAY_NAME, name).commit()
     }
 
     suspend fun clear() {
