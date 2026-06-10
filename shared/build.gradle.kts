@@ -31,6 +31,7 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-kotlinx-serialization:$retrofitVersion")
     implementation("com.squareup.okhttp3:okhttp:$okhttpVersion")
     implementation("com.squareup.okhttp3:logging-interceptor:$okhttpVersion")
+    implementation("com.squareup.okhttp3:okhttp-urlconnection:$okhttpVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
     implementation("androidx.datastore:datastore-preferences:$datastoreVersion")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")

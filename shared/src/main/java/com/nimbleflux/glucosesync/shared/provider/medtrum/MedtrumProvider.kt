@@ -16,6 +16,9 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import okhttp3.MediaType.Companion.toMediaType
+import java.net.CookieManager
+import java.net.CookiePolicy
+import okhttp3.JavaNetCookieJar
 import java.util.concurrent.TimeUnit
 
 class MedtrumProvider(private val context: Context, private val debug: Boolean = false) : GlucoseProvider {
@@ -28,6 +31,7 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val credentialStore = CredentialStore(context)
+    private val cookieManager = CookieManager().apply { setCookiePolicy(CookiePolicy.ACCEPT_ALL) }
 
     private var uid: Long = 0
     private var realname: String = ""
@@ -63,11 +67,12 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
 
     override suspend fun restoreSession(): Boolean {
         val creds = credentialStore.getCredentials() ?: return false
-        val session = credentialStore.getSession() ?: return false
-        api = buildApi(creds.baseUrl)
-        uid = session.first
-        realname = session.second
-        return true
+        return try {
+            val result = login(ProviderCredentials.UsernamePassword(creds.username, creds.password, creds.baseUrl))
+            result.isSuccess
+        } catch (_: Exception) {
+            false
+        }
     }
 
     override suspend fun fetchGlucose(): Result<GlucoseSnapshot> {
@@ -113,6 +118,7 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
 
     private fun buildApi(baseUrl: String): MedtrumApi {
         val client = OkHttpClient.Builder()
+            .cookieJar(JavaNetCookieJar(cookieManager))
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
