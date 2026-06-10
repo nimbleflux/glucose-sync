@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -12,14 +13,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.nimbleflux.glucosesync.wear.R
@@ -88,15 +90,45 @@ class MainActivity : ComponentActivity() {
                         color = MaterialTheme.colors.error
                     )
                 } else {
-                    Text(
-                        text = stringResource(R.string.waiting_for_data),
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colors.onSurfaceVariant
-                    )
+                    WaitingForDataScreen()
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun WaitingForDataScreen() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_glucosesync),
+            contentDescription = stringResource(R.string.app_name),
+            modifier = Modifier.size(36.dp)
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        CircularProgressIndicator(
+            modifier = Modifier.size(24.dp),
+            strokeWidth = 2.dp,
+            indicatorColor = MaterialTheme.colors.primary
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = stringResource(R.string.waiting_for_data),
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colors.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.waiting_for_data_hint),
+            fontSize = 10.sp,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colors.onSurfaceVariant.copy(alpha = 0.6f)
+        )
     }
 }
 

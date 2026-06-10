@@ -3,6 +3,7 @@
 
     <string name="glucose_stale">STALE</string>
     <string name="waiting_for_data">Waiting for data\u2026</string>
+    <string name="waiting_for_data_hint">Open GlucoseSync on your phone</string>
 
     <!-- Complication -->
     <string name="complication_title_glucose">Glucose</string>
