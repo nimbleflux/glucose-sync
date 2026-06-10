@@ -42,7 +42,8 @@ fun GlucoseScreen(
     onRefresh: () -> Unit,
     onLogout: () -> Unit,
     onSettings: () -> Unit,
-    onInstallWearApp: () -> Unit
+    onInstallWearApp: () -> Unit,
+    onDismissWearBanner: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -105,7 +106,7 @@ fun GlucoseScreen(
 
             if (showWearInstallBanner) {
                 Spacer(modifier = Modifier.height(8.dp))
-                WearInstallBanner(onInstall = onInstallWearApp)
+                WearInstallBanner(onInstall = onInstallWearApp, onDismiss = onDismissWearBanner)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -373,14 +374,14 @@ private fun ChecklistRow(text: String) {
 }
 
 @Composable
-private fun WearInstallBanner(onInstall: () -> Unit) {
+private fun WearInstallBanner(onInstall: () -> Unit, onDismiss: () -> Unit) {
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.tertiaryContainer,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -410,6 +411,17 @@ private fun WearInstallBanner(onInstall: () -> Unit) {
                 Text(
                     stringResource(R.string.wear_install_button),
                     style = MaterialTheme.typography.labelSmall
+                )
+            }
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.content_desc_dismiss),
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.6f)
                 )
             }
         }

@@ -41,6 +41,10 @@ fun SettingsScreen(
     onAlertVibrateChange: (Boolean) -> Unit,
     alertVibrateDuration: Int,
     onAlertVibrateDurationChange: (Int) -> Unit,
+    themeMode: String,
+    onThemeChange: (String) -> Unit,
+    showWearInstall: Boolean,
+    onInstallWearApp: () -> Unit,
     onBack: () -> Unit
 ) {
     val isMmol = currentUnit == "mmol/L"
@@ -312,6 +316,104 @@ fun SettingsScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.settings_conversion_factor), style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium))
                         Text(stringResource(R.string.settings_conversion_formula), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Text(
+                stringResource(R.string.settings_theme),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.settings_theme_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow
+            ) {
+                Column(modifier = Modifier.selectableGroup()) {
+                    val themes = listOf(
+                        "system" to stringResource(R.string.theme_system),
+                        "light" to stringResource(R.string.theme_light),
+                        "dark" to stringResource(R.string.theme_dark)
+                    )
+                    themes.forEachIndexed { index, (mode, label) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = themeMode == mode,
+                                    onClick = { onThemeChange(mode) },
+                                    role = Role.RadioButton
+                                )
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = themeMode == mode,
+                                onClick = null,
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(label, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium))
+                        }
+                        if (index < themes.size - 1) {
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        }
+                    }
+                }
+            }
+
+            if (showWearInstall) {
+                Spacer(modifier = Modifier.height(28.dp))
+
+                Text(
+                    stringResource(R.string.settings_wear_os),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.tertiaryContainer
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.wear_app_not_installed),
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Text(
+                                stringResource(R.string.wear_app_not_installed_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        FilledTonalButton(
+                            onClick = onInstallWearApp,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                stringResource(R.string.wear_install_button),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
                     }
                 }
             }

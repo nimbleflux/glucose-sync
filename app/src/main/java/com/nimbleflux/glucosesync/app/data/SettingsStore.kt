@@ -89,4 +89,10 @@ class SettingsStore(context: Context) {
     suspend fun setAlertVibrateDuration(seconds: Int) {
         prefs.edit().putInt("alert_vibrate_duration", seconds).apply()
     }
+
+    suspend fun getThemeMode(): String = prefs.getString("theme_mode", "system") ?: "system"
+
+    suspend fun setThemeMode(mode: String) {
+        prefs.edit().putString("theme_mode", mode).apply()
+    }
 }

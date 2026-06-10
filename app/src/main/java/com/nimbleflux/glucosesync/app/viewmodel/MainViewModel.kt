@@ -54,7 +54,9 @@ data class MainUiState(
     val showPatientPicker: Boolean = false,
     val patients: List<PatientInfo> = emptyList(),
     val watchPaired: Boolean = false,
-    val wearAppInstalled: Boolean = true
+    val wearAppInstalled: Boolean = true,
+    val wearBannerDismissed: Boolean = false,
+    val themeMode: String = "system"
 ) {
     val glucoseDisplay: Double?
         get() = glucose?.let { if (glucoseUnit == "mg/dL") it * 18 else it }
@@ -107,6 +109,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val sound = settingsStore.getAlertSound()
             val vibrate = settingsStore.getAlertVibrate()
             val vibrateDuration = settingsStore.getAlertVibrateDuration()
+            val themeMode = settingsStore.getThemeMode()
             _uiState.update {
                 it.copy(
                     glucoseUnit = unit,
@@ -117,7 +120,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     alertRepeatMinutes = repeat,
                     alertSound = sound,
                     alertVibrate = vibrate,
-                    alertVibrateDuration = vibrateDuration
+                    alertVibrateDuration = vibrateDuration,
+                    themeMode = themeMode
                 )
             }
 
@@ -484,6 +488,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun showSettings() { _uiState.update { it.copy(showSettings = true) } }
     fun hideSettings() { _uiState.update { it.copy(showSettings = false) } }
+
+    fun setThemeMode(mode: String) {
+        viewModelScope.launch {
+            settingsStore.setThemeMode(mode)
+            _uiState.update { it.copy(themeMode = mode) }
+        }
+    }
+
+    fun dismissWearBanner() {
+        _uiState.update { it.copy(wearBannerDismissed = true) }
+    }
 
     fun logout() {
         demoPollingJob?.cancel()

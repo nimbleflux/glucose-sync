@@ -49,9 +49,14 @@ private val DarkColors = darkColorScheme(
 
 @Composable
 fun GlucoseSyncTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: String = "system",
     content: @Composable () -> Unit
 ) {
+    val darkTheme = when (themeMode) {
+        "light" -> false
+        "dark" -> true
+        else -> isSystemInDarkTheme()
+    }
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
         content = content

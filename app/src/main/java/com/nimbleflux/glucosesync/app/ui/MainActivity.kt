@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            GlucoseSyncTheme {
+            GlucoseSyncTheme(themeMode = state.themeMode) {
                 when {
                     state.showProviderPicker -> {
                         ProviderPickerScreen(
@@ -83,6 +83,10 @@ class MainActivity : ComponentActivity() {
                             onAlertVibrateChange = { viewModel.setAlertVibrate(it) },
                             alertVibrateDuration = state.alertVibrateDuration,
                             onAlertVibrateDurationChange = { viewModel.setAlertVibrateDuration(it) },
+                            themeMode = state.themeMode,
+                            onThemeChange = { viewModel.setThemeMode(it) },
+                            showWearInstall = state.watchPaired && !state.wearAppInstalled,
+                            onInstallWearApp = { viewModel.openWatchPlayStore() },
                             onBack = { viewModel.hideSettings() }
                         )
                     }
@@ -109,14 +113,15 @@ class MainActivity : ComponentActivity() {
                             averageGlucose = state.averageGlucose,
                             highThreshold = state.highThreshold,
                             lowThreshold = state.lowThreshold,
-                            showWearInstallBanner = state.watchPaired && !state.wearAppInstalled,
+                            showWearInstallBanner = state.watchPaired && !state.wearAppInstalled && !state.wearBannerDismissed,
                             onRefresh = { viewModel.refreshGlucose() },
                             onLogout = {
                                 context.stopService(Intent(context, GlucosePollingService::class.java))
                                 viewModel.logout()
                             },
                             onSettings = { viewModel.showSettings() },
-                            onInstallWearApp = { viewModel.openWatchPlayStore() }
+                            onInstallWearApp = { viewModel.openWatchPlayStore() },
+                            onDismissWearBanner = { viewModel.dismissWearBanner() }
                         )
                     }
                     state.selectedProviderId != null -> {
