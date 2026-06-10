@@ -42,7 +42,7 @@ data class SensorStatus(
     val serial: Long? = null,
     val status: Int? = null,
     val sensorLifetimeTotalCount: Int? = null,
-    val batteryPercent: Int? = null
+    val batteryPercent: Double? = null,
 )
 
 @Serializable
