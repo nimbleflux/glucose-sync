@@ -138,6 +138,21 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
 
                 val history = parseSgHistory(chart.sg)
                 val trend = computeTrend(glucose, history)
+                val pump = response.data.pump_status
+
+                val delta = if (history.size >= 2) {
+                    history.last().glucoseMmol - history[history.size - 2].glucoseMmol
+                } else null
+
+                val timeInRange = if (history.isNotEmpty()) {
+                    val high = chart.blos_high
+                    val low = chart.blos_low
+                    history.count { it.glucoseMmol in low..high }.toDouble() / history.size
+                } else null
+
+                val averageGlucose = if (history.isNotEmpty()) {
+                    history.map { it.glucoseMmol }.average()
+                } else null
 
                 Result.success(
                     GlucoseSnapshot(
@@ -146,7 +161,18 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
                         trend = if (hasSensor) trend else TrendArrow.UNKNOWN,
                         unit = chart.glucose_unit.ifEmpty { "mmol/L" },
                         sensorActive = hasSensor,
-                        history = history
+                        history = history,
+                        iob = pump?.iob,
+                        basalRate = pump?.basalRate,
+                        lastBolus = pump?.bolusDelivered,
+                        lastBolusTime = pump?.bolusDeliveredTime,
+                        remainingDose = pump?.remainingDose,
+                        batteryPercent = sensor.batteryPercent,
+                        delta = delta,
+                        highThreshold = chart.blos_high,
+                        lowThreshold = chart.blos_low,
+                        timeInRange = timeInRange,
+                        averageGlucose = averageGlucose
                     )
                 )
             }

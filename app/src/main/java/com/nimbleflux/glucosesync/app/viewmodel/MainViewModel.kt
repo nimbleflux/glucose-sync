@@ -18,6 +18,7 @@ import com.nimbleflux.glucosesync.shared.provider.libre.LibreLinkUpProvider
 import com.nimbleflux.glucosesync.shared.provider.medtrum.MedtrumProvider
 import com.nimbleflux.glucosesync.app.ui.PatientInfo
 import com.google.android.gms.wearable.CapabilityClient
+import com.google.android.gms.wearable.CapabilityInfo
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.tasks.Tasks
@@ -333,8 +334,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 history = trimmed
             )
         }
-        snapshot.glucose?.let { g ->
-            syncToWatch(g, snapshot.timestamp, snapshot.trend.symbol, unit)
+        snapshot.glucose?.let { _ ->
+            syncToWatch(snapshot)
         }
     }
 
@@ -387,8 +388,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 history = history
                             )
                         }
-                        snapshot.glucose?.let { g ->
-                            syncToWatch(g, snapshot.timestamp, trend.symbol, snapshot.unit)
+                        snapshot.glucose?.let { _ ->
+                            syncToWatch(snapshot)
                         }
                     }
                     .onFailure { e ->
@@ -509,30 +510,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun syncToWatch(glucose: Double, timestamp: Long, trend: String, unit: String) {
+    private fun syncToWatch(snapshot: GlucoseSnapshot) {
         try {
+            val glucose = snapshot.glucose ?: return
             val dataClient = Wearable.getDataClient(getApplication<Application>())
             val request = PutDataMapRequest.create("/glucose").apply {
                 dataMap.putDouble("glucose", glucose)
-                dataMap.putLong("timestamp", timestamp)
-                dataMap.putString("trend", trend)
-                dataMap.putString("unit", unit)
+                dataMap.putLong("timestamp", snapshot.timestamp)
+                dataMap.putString("trend", snapshot.trend.symbol)
+                dataMap.putString("unit", snapshot.unit)
+                snapshot.iob?.let { dataMap.putDouble("iob", it) }
+                snapshot.delta?.let { dataMap.putDouble("delta", it) }
+                snapshot.batteryPercent?.let { dataMap.putDouble("batteryPercent", it) }
+                snapshot.basalRate?.let { dataMap.putDouble("basalRate", it) }
+                snapshot.lastBolus?.let { dataMap.putDouble("lastBolus", it) }
+                snapshot.lastBolusTime?.let { dataMap.putLong("lastBolusTime", it) }
+                snapshot.remainingDose?.let { dataMap.putDouble("remainingDose", it) }
+                snapshot.highThreshold?.let { dataMap.putDouble("highThreshold", it) }
+                snapshot.lowThreshold?.let { dataMap.putDouble("lowThreshold", it) }
+                snapshot.timeInRange?.let { dataMap.putDouble("timeInRange", it) }
+                snapshot.averageGlucose?.let { dataMap.putDouble("averageGlucose", it) }
             }
             dataClient.putDataItem(request.asPutDataRequest().setUrgent())
+            _uiState.update { it.copy(wearAppInstalled = true) }
         } catch (_: Exception) { }
     }
 
+    private val capabilityListener = CapabilityClient.OnCapabilityChangedListener { info ->
+        val hasCapability = info.nodes.isNotEmpty()
+        _uiState.update { it.copy(watchPaired = true, wearAppInstalled = hasCapability) }
+    }
+
     private fun checkWearCompanion() {
+        val app = getApplication<Application>()
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val nodeClient = Wearable.getNodeClient(getApplication<Application>())
+                val nodeClient = Wearable.getNodeClient(app)
                 val connectedNodes = Tasks.await(nodeClient.connectedNodes)
-                val hasWatch = connectedNodes.isNotEmpty()
-                if (!hasWatch) {
+                if (connectedNodes.isEmpty()) {
                     _uiState.update { it.copy(watchPaired = false, wearAppInstalled = true) }
                     return@launch
                 }
-                val capabilityClient = Wearable.getCapabilityClient(getApplication<Application>())
+                val capabilityClient = Wearable.getCapabilityClient(app)
+                capabilityClient.addListener(capabilityListener, "glucose_sync_wear")
                 val capabilityInfo = Tasks.await(
                     capabilityClient.getCapability("glucose_sync_wear", CapabilityClient.FILTER_REACHABLE)
                 )

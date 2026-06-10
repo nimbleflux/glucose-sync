@@ -6,6 +6,7 @@ import android.content.pm.ServiceInfo
 import android.util.Log
 import com.nimbleflux.glucosesync.app.BuildConfig
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
+import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
 import com.nimbleflux.glucosesync.shared.provider.GlucoseProvider
 import com.nimbleflux.glucosesync.shared.provider.ProviderRegistry
 import com.nimbleflux.glucosesync.shared.provider.libre.LibreLinkUpProvider
@@ -97,7 +98,7 @@ class GlucosePollingService : android.app.Service() {
                             val glucose = snapshot.glucose!!
                             val timestamp = snapshot.timestamp
                             if (BuildConfig.DEBUG) Log.d(TAG, "Glucose: $glucose at $timestamp")
-                            syncToWatch(glucose, timestamp, snapshot.trend.symbol, snapshot.unit)
+                            syncToWatch(glucose, timestamp, snapshot.trend.symbol, snapshot.unit, snapshot)
 
                             val alertsEnabled = try { settingsStore.getAlertsEnabled() } catch (_: Exception) { true }
                             val high = try { settingsStore.getHighThresholdMmol() } catch (_: Exception) { 10.0 }
@@ -148,13 +149,24 @@ class GlucosePollingService : android.app.Service() {
         }
     }
 
-    private fun syncToWatch(glucose: Double, timestamp: Long, trend: String, unit: String) {
+    private fun syncToWatch(glucose: Double, timestamp: Long, trend: String, unit: String, snapshot: GlucoseSnapshot) {
         try {
             val request = PutDataMapRequest.create("/glucose").apply {
                 dataMap.putDouble("glucose", glucose)
                 dataMap.putLong("timestamp", timestamp)
                 dataMap.putString("trend", trend)
                 dataMap.putString("unit", unit)
+                snapshot.iob?.let { dataMap.putDouble("iob", it) }
+                snapshot.delta?.let { dataMap.putDouble("delta", it) }
+                snapshot.batteryPercent?.let { dataMap.putDouble("batteryPercent", it) }
+                snapshot.basalRate?.let { dataMap.putDouble("basalRate", it) }
+                snapshot.lastBolus?.let { dataMap.putDouble("lastBolus", it) }
+                snapshot.lastBolusTime?.let { dataMap.putLong("lastBolusTime", it) }
+                snapshot.remainingDose?.let { dataMap.putDouble("remainingDose", it) }
+                snapshot.highThreshold?.let { dataMap.putDouble("highThreshold", it) }
+                snapshot.lowThreshold?.let { dataMap.putDouble("lowThreshold", it) }
+                snapshot.timeInRange?.let { dataMap.putDouble("timeInRange", it) }
+                snapshot.averageGlucose?.let { dataMap.putDouble("averageGlucose", it) }
             }
             dataClient.putDataItem(request.asPutDataRequest().setUrgent())
             if (BuildConfig.DEBUG) Log.d(TAG, "Synced to watch: $glucose $unit")

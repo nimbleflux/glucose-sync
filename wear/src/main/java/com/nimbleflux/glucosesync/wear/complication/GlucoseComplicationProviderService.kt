@@ -18,6 +18,12 @@ class GlucoseComplicationProviderService : ComplicationDataSourceService() {
         getSharedPreferences("complication_config", MODE_PRIVATE)
     }
 
+    private fun tapAction(): PendingIntent = PendingIntent.getActivity(
+        this, 0,
+        Intent(this, MainActivity::class.java),
+        PendingIntent.FLAG_IMMUTABLE
+    )
+
     override fun onComplicationRequest(
         request: ComplicationRequest,
         listener: ComplicationRequestListener
@@ -28,7 +34,29 @@ class GlucoseComplicationProviderService : ComplicationDataSourceService() {
         val stale = repo.isStale()
 
         if (glucose <= 0f) {
-            listener.onComplicationData(NoDataComplicationData())
+            val previewText = getString(R.string.complication_preview_glucose_text)
+            val previewDesc = getString(R.string.complication_preview_glucose_content_description)
+            val data = when (request.complicationType) {
+                ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
+                    text = PlainComplicationText.Builder(previewText).build(),
+                    contentDescription = PlainComplicationText.Builder(previewDesc).build()
+                ).setTapAction(tapAction()).build()
+                ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
+                    text = PlainComplicationText.Builder(previewText).build(),
+                    contentDescription = PlainComplicationText.Builder(previewDesc).build()
+                ).setTitle(
+                    PlainComplicationText.Builder(getString(R.string.complication_title_glucose)).build()
+                ).setTapAction(tapAction()).build()
+                ComplicationType.RANGED_VALUE -> RangedValueComplicationData.Builder(
+                    value = 5.6f,
+                    min = 0.0f,
+                    max = 22.0f,
+                    contentDescription = PlainComplicationText.Builder(previewDesc).build()
+                ).setText(PlainComplicationText.Builder(previewText).build())
+                    .setTapAction(tapAction()).build()
+                else -> NoDataComplicationData()
+            }
+            listener.onComplicationData(data)
             return
         }
 
@@ -39,19 +67,13 @@ class GlucoseComplicationProviderService : ComplicationDataSourceService() {
 
         val glucoseText = String.format("%.1f", displayGlucose)
         val glucoseContentDesc = getString(R.string.complication_content_description_glucose, glucoseText, unit)
-        val displayText = if (trend.isNotEmpty()) "$glucoseText $trend" else glucoseText
-
-        val tapAction = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
-        )
+        val displayText = if (trend.isNotEmpty()) "$trend $glucoseText" else glucoseText
 
         val data = when (request.complicationType) {
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                 text = PlainComplicationText.Builder(displayText).build(),
                 contentDescription = PlainComplicationText.Builder(glucoseContentDesc).build()
-            ).setTapAction(tapAction).build()
+            ).setTapAction(tapAction()).build()
 
             ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
                 text = PlainComplicationText.Builder(displayText).build(),
@@ -60,7 +82,7 @@ class GlucoseComplicationProviderService : ComplicationDataSourceService() {
                 PlainComplicationText.Builder(
                     if (stale) getString(R.string.glucose_stale) else getString(R.string.complication_title_glucose)
                 ).build()
-            ).setTapAction(tapAction).build()
+            ).setTapAction(tapAction()).build()
 
             ComplicationType.RANGED_VALUE -> RangedValueComplicationData.Builder(
                 value = displayGlucose,
@@ -69,7 +91,7 @@ class GlucoseComplicationProviderService : ComplicationDataSourceService() {
                 contentDescription = PlainComplicationText.Builder(glucoseContentDesc).build()
             ).setText(
                 PlainComplicationText.Builder(displayText).build()
-            ).setTapAction(tapAction).build()
+            ).setTapAction(tapAction()).build()
 
             else -> {
                 listener.onComplicationData(NoDataComplicationData())

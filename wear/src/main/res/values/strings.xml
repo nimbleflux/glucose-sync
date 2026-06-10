@@ -5,7 +5,6 @@
     <string name="waiting_for_data">Waiting for data\u2026</string>
     <string name="waiting_for_data_hint">Open GlucoseSync on your phone</string>
 
-    <!-- Complication -->
     <string name="complication_title_glucose">Glucose</string>
     <string name="complication_content_description_glucose">Glucose %1$s %2$s</string>
     <string name="complication_content_description_glucose_range">Glucose %1$s target range</string>
