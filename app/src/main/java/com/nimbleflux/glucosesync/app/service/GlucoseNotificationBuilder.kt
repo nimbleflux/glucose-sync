@@ -4,8 +4,7 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.graphics.*
-import android.graphics.drawable.Icon
+import android.graphics.Color
 import android.widget.RemoteViews
 import com.nimbleflux.glucosesync.app.R
 import com.nimbleflux.glucosesync.app.ui.MainActivity
@@ -61,13 +60,14 @@ object GlucoseNotificationBuilder {
         val builder = Notification.Builder(context, channelId)
             .setCustomContentView(contentView)
             .setStyle(Notification.DecoratedCustomViewStyle())
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(tapIntent)
             .setOngoing(true)
 
         if (showGlucoseIcon) {
-            builder.setSmallIcon(createGlucoseIcon(context, glucoseText, trend))
-        } else {
-            builder.setSmallIcon(R.drawable.ic_notification)
+            val arrow = trendArrowChar(trend)
+            val chipText = if (arrow != null) "$glucoseText $arrow" else glucoseText
+            builder.setShortCriticalText(chipText)
         }
 
         return builder.build()
@@ -86,40 +86,6 @@ object GlucoseNotificationBuilder {
             .setContentIntent(tapIntent)
             .setOngoing(true)
             .build()
-    }
-
-    private fun createGlucoseIcon(context: Context, glucoseText: String, trend: String): Icon {
-        val density = context.resources.displayMetrics.density
-        val height = (24 * density).toInt().coerceAtLeast(48)
-        val width = height * 2
-
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-
-        val cornerRadius = height / 2f
-        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        bgPaint.color = Color.WHITE
-        bgPaint.style = Paint.Style.FILL
-        canvas.drawRoundRect(0f, 0f, width.toFloat(), height.toFloat(), cornerRadius, cornerRadius, bgPaint)
-
-        val arrow = trendArrowChar(trend)
-        val label = glucoseText.replace(".0", "").replace(".", "")
-        val combined = if (arrow != null) "$label$arrow" else label
-
-        val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
-            typeface = Typeface.DEFAULT_BOLD
-            textSize = height * 0.55f
-            textAlign = Paint.Align.CENTER
-            style = Paint.Style.FILL
-        }
-
-        val textBounds = Rect()
-        clearPaint.getTextBounds(combined, 0, combined.length, textBounds)
-        val textY = height / 2f + textBounds.height() / 2f
-        canvas.drawText(combined, width / 2f, textY, clearPaint)
-
-        return Icon.createWithBitmap(bitmap)
     }
 
     private fun trendArrowChar(trend: String): String? = when (trend) {
