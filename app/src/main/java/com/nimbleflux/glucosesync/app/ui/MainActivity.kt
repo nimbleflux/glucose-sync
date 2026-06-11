@@ -106,8 +106,6 @@ class MainActivity : ComponentActivity() {
                             onDeltaMinutesChange = { viewModel.setDeltaMinutes(it) },
                             themeMode = state.themeMode,
                             onThemeChange = { viewModel.setThemeMode(it) },
-                            statusBarGlucose = state.statusBarGlucose,
-                            onStatusBarGlucoseChange = { viewModel.setStatusBarGlucose(it) },
                             showWearInstall = state.watchPaired && !state.wearAppInstalled,
                             onInstallWearApp = { viewModel.openWatchPlayStore() },
                             onLogout = {

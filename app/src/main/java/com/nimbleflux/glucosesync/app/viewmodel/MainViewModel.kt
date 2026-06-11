@@ -6,7 +6,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nimbleflux.glucosesync.app.BuildConfig
 import com.nimbleflux.glucosesync.app.data.SettingsStore
-import com.nimbleflux.glucosesync.app.service.GlucosePollingService
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
 import com.nimbleflux.glucosesync.shared.domain.DemoData
 import com.nimbleflux.glucosesync.shared.domain.AlertEntry
@@ -70,8 +69,7 @@ data class MainUiState(
     val remainingDose: Double? = null,
     val deltaMinutes: Int = 5,
     val alerts: List<AlertEntry> = emptyList(),
-    val restoringSession: Boolean = true,
-    val statusBarGlucose: Boolean = true
+    val restoringSession: Boolean = true
 ) {
     val glucoseDisplay: Double?
         get() = glucose?.let { if (glucoseUnit == "mg/dL") it * 18 else it }
@@ -134,7 +132,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val vibrateDuration = settingsStore.getAlertVibrateDuration()
             val themeMode = settingsStore.getThemeMode()
             val deltaMinutes = settingsStore.getDeltaMinutes()
-            val statusBarGlucose = settingsStore.getStatusBarGlucose()
             _uiState.update {
                 it.copy(
                     glucoseUnit = unit,
@@ -147,8 +144,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     alertVibrate = vibrate,
                     alertVibrateDuration = vibrateDuration,
                     themeMode = themeMode,
-                    deltaMinutes = deltaMinutes,
-                    statusBarGlucose = statusBarGlucose
+                    deltaMinutes = deltaMinutes
                 )
             }
 
@@ -564,17 +560,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (_uiState.value.isLoggedIn && !_uiState.value.isDemo) {
                 refreshGlucose()
             }
-        }
-    }
-
-    fun setStatusBarGlucose(enabled: Boolean) {
-        viewModelScope.launch {
-            settingsStore.setStatusBarGlucose(enabled)
-            _uiState.update { it.copy(statusBarGlucose = enabled) }
-            val intent = Intent(getApplication(), GlucosePollingService::class.java).apply {
-                action = GlucosePollingService.ACTION_UPDATE_NOTIFICATION
-            }
-            getApplication<Application>().startService(intent)
         }
     }
 

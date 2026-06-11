@@ -5,7 +5,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.os.Build
 import android.widget.RemoteViews
 import com.nimbleflux.glucosesync.app.R
 import com.nimbleflux.glucosesync.app.ui.MainActivity
@@ -23,8 +22,7 @@ object GlucoseNotificationBuilder {
         delta: Double?,
         unit: String,
         batteryPercent: Double?,
-        timestamp: Long,
-        showStatusBarChip: Boolean = false
+        timestamp: Long
     ): Notification {
         val glucoseVal = glucose ?: return buildDefault(context, channelId)
 
@@ -40,28 +38,7 @@ object GlucoseNotificationBuilder {
             " ${context.getString(R.string.notification_battery_format, (batteryPercent * 100).toInt())}"
         } else ""
 
-        val tapIntent = PendingIntent.getActivity(
-            context, 0,
-            Intent(context, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-
-        if (showStatusBarChip) {
-            val arrow = trendArrowChar(trend)
-            val chipText = if (arrow != null) "$glucoseText $arrow" else glucoseText
-            val bodyText = "${unit}${deltaText}  ${timeText}${batteryText}"
-
-            return Notification.Builder(context, channelId)
-                .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(chipText)
-                .setContentText(bodyText)
-                .setContentIntent(tapIntent)
-                .setOngoing(true)
-                .setOnlyAlertOnce(true)
-                .setDefaults(0)
-                .setShortCriticalText(chipText)
-                .build()
-        }
+        val color = glucoseColor(glucoseVal, isMmol)
 
         val collapsedView = RemoteViews(context.packageName, R.layout.notification_glucose_collapsed).apply {
             setTextViewText(R.id.notification_glucose, glucoseText)
@@ -69,7 +46,7 @@ object GlucoseNotificationBuilder {
             setTextViewText(R.id.notification_unit, unit)
             setTextViewText(R.id.notification_delta, deltaText)
             setTextViewText(R.id.notification_battery, batteryText)
-            setTextColor(R.id.notification_glucose, glucoseColor(glucoseVal, isMmol))
+            setTextColor(R.id.notification_glucose, color)
         }
 
         val expandedView = RemoteViews(context.packageName, R.layout.notification_glucose_expanded).apply {
@@ -79,8 +56,14 @@ object GlucoseNotificationBuilder {
             setTextViewText(R.id.notification_delta, deltaText)
             setTextViewText(R.id.notification_time, timeText)
             setTextViewText(R.id.notification_battery, batteryText)
-            setTextColor(R.id.notification_glucose, glucoseColor(glucoseVal, isMmol))
+            setTextColor(R.id.notification_glucose, color)
         }
+
+        val tapIntent = PendingIntent.getActivity(
+            context, 0,
+            Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
 
         return Notification.Builder(context, channelId)
             .setCustomContentView(collapsedView)
@@ -90,7 +73,6 @@ object GlucoseNotificationBuilder {
             .setContentIntent(tapIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setDefaults(0)
             .build()
     }
 
@@ -107,17 +89,6 @@ object GlucoseNotificationBuilder {
             .setContentIntent(tapIntent)
             .setOngoing(true)
             .build()
-    }
-
-    private fun trendArrowChar(trend: String): String? = when (trend) {
-        "↑↑" -> "⇈"
-        "↑" -> "↑"
-        "↗" -> "↗"
-        "→" -> "→"
-        "↘" -> "↘"
-        "↓" -> "↓"
-        "↓↓" -> "⇊"
-        else -> null
     }
 
     private fun formatTime(timestamp: Long): String {

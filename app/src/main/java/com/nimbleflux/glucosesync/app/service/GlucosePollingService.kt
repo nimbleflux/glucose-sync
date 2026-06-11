@@ -59,12 +59,8 @@ class GlucosePollingService : android.app.Service() {
     override fun onBind(intent: Intent?): android.os.IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_UPDATE_NOTIFICATION) {
-            updateNotification()
-        } else {
-            startForeground()
-            startPolling()
-        }
+        startForeground()
+        startPolling()
         return START_STICKY
     }
 
@@ -73,12 +69,10 @@ class GlucosePollingService : android.app.Service() {
         val channel = NotificationChannel(
             channelId,
             getString(R.string.notification_channel_monitoring),
-            NotificationManager.IMPORTANCE_DEFAULT
+            NotificationManager.IMPORTANCE_LOW
         ).apply {
             description = getString(R.string.notification_channel_monitoring_desc)
-            setShowBadge(true)
-            setSound(null, null)
-            vibrationPattern = null
+            setShowBadge(false)
         }
 
         val manager = getSystemService(NotificationManager::class.java)
@@ -89,13 +83,8 @@ class GlucosePollingService : android.app.Service() {
     }
 
     private fun updateNotification() {
-        val glucose = lastGlucose ?: run {
-            if (BuildConfig.DEBUG) Log.d(TAG, "updateNotification: lastGlucose is null, skipping")
-            return
-        }
+        val glucose = lastGlucose ?: return
         try {
-            val showIcon = try { settingsStore.getStatusBarGlucose() } catch (_: Exception) { false }
-            if (BuildConfig.DEBUG) Log.d(TAG, "updateNotification: glucose=$glucose, showChip=$showIcon, trend=$lastTrend")
             val notification = GlucoseNotificationBuilder.build(
                 context = this,
                 channelId = "medtrum_glucose_polling",
@@ -104,10 +93,10 @@ class GlucosePollingService : android.app.Service() {
                 delta = lastDelta,
                 unit = lastUnit,
                 batteryPercent = lastBattery,
-                timestamp = lastTimestamp,
-                showStatusBarChip = showIcon
+                timestamp = lastTimestamp
             )
-            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.notify(1, notification)
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) Log.e(TAG, "Notification update failed: ${e.message}")
         }
@@ -274,6 +263,5 @@ class GlucosePollingService : android.app.Service() {
     companion object {
         private const val TAG = "GlucosePolling"
         private const val POLLING_INTERVAL_MS = 300_000L
-        const val ACTION_UPDATE_NOTIFICATION = "com.nimbleflux.glucosesync.UPDATE_NOTIFICATION"
     }
 }
