@@ -108,6 +108,10 @@ class MainActivity : ComponentActivity() {
                             onThemeChange = { viewModel.setThemeMode(it) },
                             showWearInstall = state.watchPaired && !state.wearAppInstalled,
                             onInstallWearApp = { viewModel.openWatchPlayStore() },
+                            onLogout = {
+                                context.stopService(Intent(context, GlucosePollingService::class.java))
+                                viewModel.logout()
+                            },
                             onBack = { viewModel.hideSettings() }
                         )
                     }
@@ -145,10 +149,6 @@ class MainActivity : ComponentActivity() {
                             remainingDose = state.remainingDose,
                             alerts = state.alerts,
                             onRefresh = { viewModel.refreshGlucose() },
-                            onLogout = {
-                                context.stopService(Intent(context, GlucosePollingService::class.java))
-                                viewModel.logout()
-                            },
                             onSettings = { viewModel.showSettings() },
                             onInstallWearApp = { viewModel.openWatchPlayStore() },
                             onDismissWearBanner = { viewModel.dismissWearBanner() }

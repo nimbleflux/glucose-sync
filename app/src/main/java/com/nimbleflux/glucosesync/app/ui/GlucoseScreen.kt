@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -49,7 +48,6 @@ fun GlucoseScreen(
     remainingDose: Double?,
     alerts: List<AlertEntry>,
     onRefresh: () -> Unit,
-    onLogout: () -> Unit,
     onSettings: () -> Unit,
     onInstallWearApp: () -> Unit,
     onDismissWearBanner: () -> Unit
@@ -138,14 +136,6 @@ fun GlucoseScreen(
                     iob, delta, batteryPercent, basalRate, lastBolus, lastBolusTime, remainingDose, alerts)
             } else {
                 InactiveSection(error)
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            TextButton(onClick = onLogout) {
-                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(stringResource(R.string.sign_out), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
