@@ -1,10 +1,12 @@
 package com.nimbleflux.glucosesync.app.viewmodel
 
 import android.app.Application
+import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nimbleflux.glucosesync.app.BuildConfig
 import com.nimbleflux.glucosesync.app.data.SettingsStore
+import com.nimbleflux.glucosesync.app.service.GlucosePollingService
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
 import com.nimbleflux.glucosesync.shared.domain.DemoData
 import com.nimbleflux.glucosesync.shared.domain.AlertEntry
@@ -569,6 +571,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             settingsStore.setStatusBarGlucose(enabled)
             _uiState.update { it.copy(statusBarGlucose = enabled) }
+            val intent = Intent(getApplication(), GlucosePollingService::class.java).apply {
+                action = GlucosePollingService.ACTION_UPDATE_NOTIFICATION
+            }
+            getApplication<Application>().startService(intent)
         }
     }
 

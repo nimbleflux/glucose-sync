@@ -59,8 +59,12 @@ class GlucosePollingService : android.app.Service() {
     override fun onBind(intent: Intent?): android.os.IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground()
-        startPolling()
+        if (intent?.action == ACTION_UPDATE_NOTIFICATION) {
+            updateNotification()
+        } else {
+            startForeground()
+            startPolling()
+        }
         return START_STICKY
     }
 
@@ -264,5 +268,6 @@ class GlucosePollingService : android.app.Service() {
     companion object {
         private const val TAG = "GlucosePolling"
         private const val POLLING_INTERVAL_MS = 300_000L
+        const val ACTION_UPDATE_NOTIFICATION = "com.nimbleflux.glucosesync.UPDATE_NOTIFICATION"
     }
 }
