@@ -1,9 +1,13 @@
 package com.nimbleflux.glucosesync.app.ui
 
+import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowInsetsControllerCompat
 
 private val Blue = Color(0xFF4A90D9)
 private val BlueLight = Color(0xFF7BB3E8)
@@ -50,6 +54,7 @@ private val DarkColors = darkColorScheme(
 @Composable
 fun GlucoseSyncTheme(
     themeMode: String = "system",
+    activity: ComponentActivity,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
@@ -57,6 +62,14 @@ fun GlucoseSyncTheme(
         "dark" -> true
         else -> isSystemInDarkTheme()
     }
+
+    SideEffect {
+        val window = activity.window
+        val insetsController = WindowInsetsControllerCompat(window, window.decorView)
+        insetsController.isAppearanceLightStatusBars = !darkTheme
+        insetsController.isAppearanceLightNavigationBars = !darkTheme
+    }
+
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
         content = content

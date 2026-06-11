@@ -77,6 +77,8 @@ class GlucosePollingService : android.app.Service() {
         ).apply {
             description = getString(R.string.notification_channel_monitoring_desc)
             setShowBadge(true)
+            setSound(null, null)
+            vibrationPattern = null
         }
 
         val manager = getSystemService(NotificationManager::class.java)
@@ -103,7 +105,7 @@ class GlucosePollingService : android.app.Service() {
                 unit = lastUnit,
                 batteryPercent = lastBattery,
                 timestamp = lastTimestamp,
-                showGlucoseIcon = showIcon
+                showStatusBarChip = showIcon
             )
             startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } catch (e: Exception) {

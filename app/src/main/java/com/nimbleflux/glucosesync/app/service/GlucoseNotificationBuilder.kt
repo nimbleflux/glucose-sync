@@ -5,7 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.util.Log
+import android.os.Build
 import android.widget.RemoteViews
 import com.nimbleflux.glucosesync.app.R
 import com.nimbleflux.glucosesync.app.ui.MainActivity
@@ -14,8 +14,6 @@ import java.util.Date
 import java.util.Locale
 
 object GlucoseNotificationBuilder {
-
-    private const val TAG = "NotifBuilder"
 
     fun build(
         context: Context,
@@ -26,7 +24,7 @@ object GlucoseNotificationBuilder {
         unit: String,
         batteryPercent: Double?,
         timestamp: Long,
-        showGlucoseIcon: Boolean = true
+        showStatusBarChip: Boolean = false
     ): Notification {
         val glucoseVal = glucose ?: return buildDefault(context, channelId)
 
@@ -42,43 +40,58 @@ object GlucoseNotificationBuilder {
             " ${context.getString(R.string.notification_battery_format, (batteryPercent * 100).toInt())}"
         } else ""
 
-        val contentView = RemoteViews(context.packageName, R.layout.notification_glucose).apply {
-            setTextViewText(R.id.notification_glucose, glucoseText)
-            setTextViewText(R.id.notification_trend, trend)
-            setTextViewText(R.id.notification_unit, unit)
-            setTextViewText(R.id.notification_delta, deltaText)
-            setTextViewText(R.id.notification_time, timeText)
-            setTextViewText(R.id.notification_battery, batteryText)
-
-            val color = glucoseColor(glucoseVal, isMmol)
-            setTextColor(R.id.notification_glucose, color)
-        }
-
         val tapIntent = PendingIntent.getActivity(
             context, 0,
             Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val builder = Notification.Builder(context, channelId)
-            .setCustomContentView(contentView)
+        if (showStatusBarChip) {
+            val arrow = trendArrowChar(trend)
+            val chipText = if (arrow != null) "$glucoseText $arrow" else glucoseText
+            val bodyText = "${unit}${deltaText}  ${timeText}${batteryText}"
+
+            return Notification.Builder(context, channelId)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(chipText)
+                .setContentText(bodyText)
+                .setContentIntent(tapIntent)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setDefaults(0)
+                .setShortCriticalText(chipText)
+                .build()
+        }
+
+        val collapsedView = RemoteViews(context.packageName, R.layout.notification_glucose_collapsed).apply {
+            setTextViewText(R.id.notification_glucose, glucoseText)
+            setTextViewText(R.id.notification_trend, trend)
+            setTextViewText(R.id.notification_unit, unit)
+            setTextViewText(R.id.notification_delta, deltaText)
+            setTextViewText(R.id.notification_battery, batteryText)
+            setTextColor(R.id.notification_glucose, glucoseColor(glucoseVal, isMmol))
+        }
+
+        val expandedView = RemoteViews(context.packageName, R.layout.notification_glucose_expanded).apply {
+            setTextViewText(R.id.notification_glucose, glucoseText)
+            setTextViewText(R.id.notification_trend, trend)
+            setTextViewText(R.id.notification_unit, unit)
+            setTextViewText(R.id.notification_delta, deltaText)
+            setTextViewText(R.id.notification_time, timeText)
+            setTextViewText(R.id.notification_battery, batteryText)
+            setTextColor(R.id.notification_glucose, glucoseColor(glucoseVal, isMmol))
+        }
+
+        return Notification.Builder(context, channelId)
+            .setCustomContentView(collapsedView)
+            .setCustomBigContentView(expandedView)
             .setStyle(Notification.DecoratedCustomViewStyle())
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(tapIntent)
             .setOngoing(true)
-
-        if (showGlucoseIcon) {
-            val arrow = trendArrowChar(trend)
-            val chipText = if (arrow != null) "$glucoseText $arrow" else glucoseText
-            Log.d(TAG, "Setting shortCriticalText: '$chipText' (length=${chipText.length})")
-            builder.setShortCriticalText(chipText)
-        } else {
-            Log.d(TAG, "Status bar chip disabled, using default icon only")
-        }
-
-        val notification = builder.build()
-        Log.d(TAG, "Built notification: smallIcon=${notification.smallIcon}, extras=${notification.extras}")
-        return notification
+            .setOnlyAlertOnce(true)
+            .setDefaults(0)
+            .build()
     }
 
     fun buildDefault(context: Context, channelId: String): Notification {

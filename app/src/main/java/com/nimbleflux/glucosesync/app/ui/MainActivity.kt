@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            GlucoseSyncTheme(themeMode = state.themeMode) {
+            GlucoseSyncTheme(themeMode = state.themeMode, activity = this@MainActivity) {
                 when {
                     state.restoringSession -> {
                         Box(
