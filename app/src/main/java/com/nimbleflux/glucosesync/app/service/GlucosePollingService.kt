@@ -97,8 +97,7 @@ class GlucosePollingService : android.app.Service() {
                 timestamp = lastTimestamp,
                 showGlucoseIcon = showIcon
             )
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.notify(1, notification)
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) Log.e(TAG, "Notification update failed: ${e.message}")
         }

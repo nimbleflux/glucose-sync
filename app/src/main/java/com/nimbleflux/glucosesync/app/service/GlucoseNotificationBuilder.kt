@@ -63,6 +63,7 @@ object GlucoseNotificationBuilder {
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(tapIntent)
             .setOngoing(true)
+            .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
 
         if (showGlucoseIcon) {
             val arrow = trendArrowChar(trend)
