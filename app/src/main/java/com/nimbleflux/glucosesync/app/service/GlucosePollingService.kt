@@ -69,9 +69,10 @@ class GlucosePollingService : android.app.Service() {
         val channel = NotificationChannel(
             channelId,
             getString(R.string.notification_channel_monitoring),
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
             description = getString(R.string.notification_channel_monitoring_desc)
+            setShowBadge(true)
         }
 
         val manager = getSystemService(NotificationManager::class.java)
