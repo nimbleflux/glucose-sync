@@ -19,15 +19,12 @@ class IobComplicationProviderService : ComplicationDataSourceService() {
         PendingIntent.FLAG_IMMUTABLE
     )
 
-    private val dropletImage by lazy {
-        SmallImage.Builder(
-            ComplicationIcons.dropletIcon(this),
-            SmallImageType.ICON
-        ).build()
-    }
-
     private val dropletMono by lazy {
         MonochromaticImage.Builder(ComplicationIcons.dropletIcon(this)).build()
+    }
+
+    private val dropletSmall by lazy {
+        SmallImage.Builder(ComplicationIcons.dropletIcon(this), SmallImageType.ICON).build()
     }
 
     override fun onComplicationRequest(
@@ -48,7 +45,7 @@ class IobComplicationProviderService : ComplicationDataSourceService() {
                     contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_iob, "--")).build()
                 ).setTitle(
                     PlainComplicationText.Builder(getString(R.string.complication_title_iob)).build()
-                ).setSmallImage(dropletImage)
+                ).setSmallImage(dropletSmall)
                     .setTapAction(tapAction()).build()
                 else -> NoDataComplicationData()
             }
@@ -70,7 +67,7 @@ class IobComplicationProviderService : ComplicationDataSourceService() {
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_iob, iobText)).build()
             ).setTitle(
                 PlainComplicationText.Builder(getString(R.string.complication_title_iob)).build()
-            ).setSmallImage(dropletImage)
+            ).setSmallImage(dropletSmall)
                 .setTapAction(tapAction()).build()
 
             else -> {
@@ -92,7 +89,7 @@ class IobComplicationProviderService : ComplicationDataSourceService() {
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_iob, "1.2")).build()
             ).setTitle(
                 PlainComplicationText.Builder(getString(R.string.complication_title_iob)).build()
-            ).setSmallImage(dropletImage).build()
+            ).setSmallImage(dropletSmall).build()
             else -> NoDataComplicationData()
         }
     }

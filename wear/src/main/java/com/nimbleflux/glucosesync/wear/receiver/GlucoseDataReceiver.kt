@@ -1,11 +1,13 @@
 package com.nimbleflux.glucosesync.wear.receiver
 
+import android.content.Intent
 import android.util.Log
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMap
 import com.google.android.gms.wearable.WearableListenerService
 import com.nimbleflux.glucosesync.wear.repository.GlucoseRepository
+import androidx.wear.watchface.complications.datasource.ComplicationDataSourceService
 
 class GlucoseDataReceiver : WearableListenerService() {
 
@@ -47,8 +49,16 @@ class GlucoseDataReceiver : WearableListenerService() {
                     averageGlucose = if (map.getDouble("averageGlucose", -1.0) >= 0) map.getDouble("averageGlucose") else null,
                     history = history
                 )
+
+                requestComplicationUpdate()
             }
         }
+    }
+
+    private fun requestComplicationUpdate() {
+        val intent = Intent(ComplicationDataSourceService.ACTION_COMPLICATION_UPDATE_REQUEST)
+        intent.setPackage(packageName)
+        sendBroadcast(intent)
     }
 
     companion object {

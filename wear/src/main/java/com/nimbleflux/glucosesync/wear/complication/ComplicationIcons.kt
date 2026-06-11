@@ -6,7 +6,7 @@ import com.nimbleflux.glucosesync.wear.R
 
 object ComplicationIcons {
 
-    fun trendIcon(context: Context, trend: String): Icon? {
+    fun trendIcon(context: Context, trend: String): Icon {
         val resId = when (trend) {
             "\u2B06" -> R.drawable.ic_trend_rising_rapidly
             "\u2191" -> R.drawable.ic_trend_rising
@@ -15,9 +15,9 @@ object ComplicationIcons {
             "\u2198" -> R.drawable.ic_trend_falling_slowly
             "\u2193" -> R.drawable.ic_trend_falling
             "\u2B07" -> R.drawable.ic_trend_falling_rapidly
-            else -> null
+            else -> R.drawable.ic_trend_unknown
         }
-        return resId?.let { Icon.createWithResource(context, it) }
+        return Icon.createWithResource(context, resId)
     }
 
     fun dropletIcon(context: Context): Icon =

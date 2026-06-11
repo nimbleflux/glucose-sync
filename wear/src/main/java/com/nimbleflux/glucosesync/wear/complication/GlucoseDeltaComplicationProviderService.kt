@@ -19,6 +19,12 @@ class GlucoseDeltaComplicationProviderService : ComplicationDataSourceService() 
         PendingIntent.FLAG_IMMUTABLE
     )
 
+    private fun trendMono(trend: String) =
+        MonochromaticImage.Builder(ComplicationIcons.trendIcon(this, trend)).build()
+
+    private fun trendSmall(trend: String) =
+        SmallImage.Builder(ComplicationIcons.trendIcon(this, trend), SmallImageType.ICON).build()
+
     override fun onComplicationRequest(
         request: ComplicationRequest,
         listener: ComplicationRequestListener
@@ -30,19 +36,18 @@ class GlucoseDeltaComplicationProviderService : ComplicationDataSourceService() 
         val unit = state.unit
 
         if (glucose <= 0.0) {
-            val trendImg = ComplicationIcons.trendIcon(this, trend)
             val data = when (request.complicationType) {
                 ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                     text = PlainComplicationText.Builder("--").build(),
                     contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_glucose, "--", unit)).build()
-                ).apply { trendImg?.let { setMonochromaticImage(MonochromaticImage.Builder(it).build()) } }
+                ).setMonochromaticImage(trendMono(trend))
                     .setTapAction(tapAction()).build()
                 ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
                     text = PlainComplicationText.Builder("--").build(),
                     contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_glucose, "--", unit)).build()
                 ).setTitle(
                     PlainComplicationText.Builder(getString(R.string.complication_title_glucose)).build()
-                ).apply { trendImg?.let { setSmallImage(SmallImage.Builder(it, SmallImageType.ICON).build()) } }
+                ).setSmallImage(trendSmall(trend))
                     .setTapAction(tapAction()).build()
                 else -> NoDataComplicationData()
             }
@@ -55,13 +60,11 @@ class GlucoseDeltaComplicationProviderService : ComplicationDataSourceService() 
         val deltaPart = if (delta != null) " (${sign}${String.format("%.1f", delta)})" else ""
         val displayText = "$glucoseText$deltaPart"
 
-        val trendImg = ComplicationIcons.trendIcon(this, trend)
-
         val data = when (request.complicationType) {
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                 text = PlainComplicationText.Builder(displayText).build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_glucose_delta, glucoseText, unit, deltaPart)).build()
-            ).apply { trendImg?.let { setMonochromaticImage(MonochromaticImage.Builder(it).build()) } }
+            ).setMonochromaticImage(trendMono(trend))
                 .setTapAction(tapAction()).build()
 
             ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
@@ -69,7 +72,7 @@ class GlucoseDeltaComplicationProviderService : ComplicationDataSourceService() 
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_glucose_delta, glucoseText, unit, deltaPart)).build()
             ).setTitle(
                 PlainComplicationText.Builder(getString(R.string.complication_title_glucose)).build()
-            ).apply { trendImg?.let { setSmallImage(SmallImage.Builder(it, SmallImageType.ICON).build()) } }
+            ).setSmallImage(trendSmall(trend))
                 .setTapAction(tapAction()).build()
 
             else -> {
@@ -81,18 +84,19 @@ class GlucoseDeltaComplicationProviderService : ComplicationDataSourceService() 
     }
 
     override fun getPreviewData(type: ComplicationType): ComplicationData {
-        val trendImg = ComplicationIcons.trendIcon(this, "\u2192")
+        val mono = trendMono("\u2192")
+        val small = trendSmall("\u2192")
         return when (type) {
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                 text = PlainComplicationText.Builder("5.6 (+0.3)").build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_glucose_delta, "5.6", "mmol/L", " +0.3")).build()
-            ).apply { trendImg?.let { setMonochromaticImage(MonochromaticImage.Builder(it).build()) } }.build()
+            ).setMonochromaticImage(mono).build()
             ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
                 text = PlainComplicationText.Builder("5.6 (+0.3) mmol/L").build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_glucose_delta, "5.6", "mmol/L", " +0.3")).build()
             ).setTitle(
                 PlainComplicationText.Builder(getString(R.string.complication_title_glucose)).build()
-            ).apply { trendImg?.let { setSmallImage(SmallImage.Builder(it, SmallImageType.ICON).build()) } }.build()
+            ).setSmallImage(small).build()
             else -> NoDataComplicationData()
         }
     }
