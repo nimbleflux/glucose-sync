@@ -6,6 +6,7 @@ import android.content.pm.ServiceInfo
 import android.util.Log
 import com.nimbleflux.glucosesync.app.BuildConfig
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
+import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
 import com.nimbleflux.glucosesync.shared.provider.GlucoseProvider
 import com.nimbleflux.glucosesync.shared.provider.ProviderRegistry
@@ -27,6 +28,7 @@ class GlucosePollingService : android.app.Service() {
     private lateinit var settingsStore: SettingsStore
     private lateinit var alertManager: GlucoseAlertManager
     private var provider: GlucoseProvider? = null
+    private val accumulatedHistory = mutableListOf<GlucoseHistoryPoint>()
 
     override fun onCreate() {
         super.onCreate()
@@ -98,6 +100,18 @@ class GlucosePollingService : android.app.Service() {
                             val glucose = snapshot.glucose!!
                             val timestamp = snapshot.timestamp
                             if (BuildConfig.DEBUG) Log.d(TAG, "Glucose: $glucose at $timestamp")
+
+                            if (snapshot.history.isNotEmpty()) {
+                                accumulatedHistory.clear()
+                                accumulatedHistory.addAll(snapshot.history)
+                            } else {
+                                accumulatedHistory.add(GlucoseHistoryPoint(timestamp, glucose))
+                            }
+                            val cutoff = System.currentTimeMillis() / 1000 - 86400
+                            while (accumulatedHistory.isNotEmpty() && accumulatedHistory.first().timestamp < cutoff) {
+                                accumulatedHistory.removeAt(0)
+                            }
+
                             syncToWatch(glucose, timestamp, snapshot.trend.symbol, snapshot.unit, snapshot)
 
                             val alertsEnabled = try { settingsStore.getAlertsEnabled() } catch (_: Exception) { true }
@@ -167,9 +181,9 @@ class GlucosePollingService : android.app.Service() {
                 snapshot.lowThreshold?.let { dataMap.putDouble("lowThreshold", it) }
                 snapshot.timeInRange?.let { dataMap.putDouble("timeInRange", it) }
                 snapshot.averageGlucose?.let { dataMap.putDouble("averageGlucose", it) }
-                if (snapshot.history.isNotEmpty()) {
+                if (accumulatedHistory.isNotEmpty()) {
                     val cutoff = System.currentTimeMillis() / 1000 - 7200
-                    val recent = snapshot.history.filter { it.timestamp >= cutoff }
+                    val recent = accumulatedHistory.filter { it.timestamp >= cutoff }
                     dataMap.putLongArray("history_ts", recent.map { it.timestamp }.toLongArray())
                     dataMap.putFloatArray("history_gl", recent.map { it.glucoseMmol.toFloat() }.toFloatArray())
                 }

@@ -6,7 +6,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.animate
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,12 +16,16 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -103,27 +106,46 @@ private fun GlucoseDashboard(state: WatchGlucoseState, onRefresh: () -> Unit) {
     var refreshing by remember { mutableStateOf(false) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (dragOffset > 0f && available.y > 0f) {
+                    val consumed = available.y.coerceAtMost(150f - dragOffset)
+                    dragOffset += consumed
+                    return Offset(0f, consumed)
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                if (available.y > 0f && !refreshing) {
+                    val toConsume = available.y.coerceAtMost(150f - dragOffset)
+                    dragOffset += toConsume
+                    return Offset(0f, toConsume)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (dragOffset > 80f && !refreshing) {
+                    refreshing = true
+                    onRefresh()
+                }
+                dragOffset = 0f
+                return Velocity.Zero
+            }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
         ScalingLazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragEnd = {
-                            if (dragOffset > 80f && !refreshing) {
-                                refreshing = true
-                                onRefresh()
-                            }
-                            dragOffset = 0f
-                        },
-                        onDragCancel = { dragOffset = 0f }
-                    ) { _, dragAmount ->
-                        if (dragAmount > 0 && listState.canScrollBackward.not()) {
-                            dragOffset = (dragOffset + dragAmount).coerceAtMost(150f)
-                        }
-                    }
-                }
                 .graphicsLayer { translationY = dragOffset * 0.3f },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -387,22 +409,20 @@ private fun StaleGlucoseScreen(state: WatchGlucoseState, onRefresh: () -> Unit) 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragEnd = {
-                        if (refreshing.not()) {
+            .nestedScroll(remember {
+                object : NestedScrollConnection {
+                    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                        if (!refreshing && available.y > 100f) {
                             refreshing = true
                             onRefresh()
                         }
-                    },
-                    onDragCancel = { }
-                ) { _, _ -> }
-            },
+                        return Velocity.Zero
+                    }
+                }
+            }),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             if (refreshing) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp).padding(bottom = 8.dp),

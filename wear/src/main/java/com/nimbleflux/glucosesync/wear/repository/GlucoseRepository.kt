@@ -104,6 +104,7 @@ class GlucoseRepository private constructor(context: Context) {
             existing.add(timestamp to glucose)
             existing.trimTo2h()
         }
+        persistHistory(updatedHistory)
         _state.value = WatchGlucoseState(
             glucose, unit, trend, timestamp, updatedHistory,
             iob, delta, batteryPercent, basalRate, lastBolus, lastBolusTime, remainingDose,
@@ -118,6 +119,26 @@ class GlucoseRepository private constructor(context: Context) {
     fun getTrend(): String = _state.value.trend
     fun getUnit(): String = _state.value.unit
     fun isStale(): Boolean = _state.value.isStale
+
+    private fun persistHistory(history: List<Pair<Long, Double>>) {
+        if (history.isEmpty()) return
+        val ts = history.joinToString(",") { it.first.toString() }
+        val gl = history.joinToString(",") { String.format("%.2f", it.second) }
+        prefs.edit()
+            .putString(KEY_HISTORY_TS, ts)
+            .putString(KEY_HISTORY_GL, gl)
+            .apply()
+    }
+
+    private fun loadHistory(): List<Pair<Long, Double>> {
+        val ts = prefs.getString(KEY_HISTORY_TS, null) ?: return emptyList()
+        val gl = prefs.getString(KEY_HISTORY_GL, null) ?: return emptyList()
+        val timestamps = ts.split(",").mapNotNull { it.toLongOrNull() }
+        val glucoses = gl.split(",").mapNotNull { it.toDoubleOrNull() }
+        if (timestamps.size != glucoses.size) return emptyList()
+        val cutoff = System.currentTimeMillis() / 1000 - 7200
+        return timestamps.zip(glucoses).filter { it.first >= cutoff }
+    }
 
     fun injectDemoData() {
         val now = System.currentTimeMillis() / 1000
@@ -158,6 +179,7 @@ class GlucoseRepository private constructor(context: Context) {
             unit = prefs.getString(KEY_UNIT, "mmol/L") ?: "mmol/L",
             trend = prefs.getString(KEY_TREND, "") ?: "",
             timestamp = prefs.getLong(KEY_TIMESTAMP, 0),
+            history = loadHistory(),
             iob = prefs.getFloat(KEY_IOB, -1f).let { if (it < 0) null else it.toDouble() },
             delta = prefs.getFloat(KEY_DELTA, -999f).let { if (it < -998) null else it.toDouble() },
             batteryPercent = prefs.getFloat(KEY_BATTERY, -1f).let { if (it < 0) null else it.toDouble() },
@@ -197,5 +219,7 @@ class GlucoseRepository private constructor(context: Context) {
         private const val KEY_LOW_THRESHOLD = "low_threshold"
         private const val KEY_TIME_IN_RANGE = "time_in_range"
         private const val KEY_AVERAGE_GLUCOSE = "average_glucose"
+        private const val KEY_HISTORY_TS = "history_ts"
+        private const val KEY_HISTORY_GL = "history_gl"
     }
 }
