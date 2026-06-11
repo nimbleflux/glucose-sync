@@ -8,6 +8,7 @@ import com.nimbleflux.glucosesync.app.BuildConfig
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
+import com.nimbleflux.glucosesync.shared.domain.TrendArrow
 import com.nimbleflux.glucosesync.shared.provider.GlucoseProvider
 import com.nimbleflux.glucosesync.shared.provider.ProviderRegistry
 import com.nimbleflux.glucosesync.shared.provider.libre.LibreLinkUpProvider
@@ -112,7 +113,16 @@ class GlucosePollingService : android.app.Service() {
                                 accumulatedHistory.removeAt(0)
                             }
 
-                            syncToWatch(glucose, timestamp, snapshot.trend.symbol, snapshot.unit, snapshot)
+                            val deltaMin = try { settingsStore.getDeltaMinutes() } catch (_: Exception) { 5 }
+                            val computedDelta = computeDelta(accumulatedHistory, deltaMin) ?: snapshot.delta
+                            val trend = if (snapshot.trend == TrendArrow.UNKNOWN) {
+                                TrendArrow.fromDelta(computedDelta ?: 0.0)
+                            } else {
+                                snapshot.trend
+                            }
+                            val trendSymbol = trend.symbol
+
+                            syncToWatch(glucose, timestamp, trendSymbol, computedDelta, snapshot.unit, snapshot)
 
                             val alertsEnabled = try { settingsStore.getAlertsEnabled() } catch (_: Exception) { true }
                             val high = try { settingsStore.getHighThresholdMmol() } catch (_: Exception) { 10.0 }
@@ -163,7 +173,7 @@ class GlucosePollingService : android.app.Service() {
         }
     }
 
-    private fun syncToWatch(glucose: Double, timestamp: Long, trend: String, unit: String, snapshot: GlucoseSnapshot) {
+    private fun syncToWatch(glucose: Double, timestamp: Long, trend: String, delta: Double?, unit: String, snapshot: GlucoseSnapshot) {
         try {
             val request = PutDataMapRequest.create("/glucose").apply {
                 dataMap.putDouble("glucose", glucose)
@@ -171,7 +181,7 @@ class GlucosePollingService : android.app.Service() {
                 dataMap.putString("trend", trend)
                 dataMap.putString("unit", unit)
                 snapshot.iob?.let { dataMap.putDouble("iob", it) }
-                snapshot.delta?.let { dataMap.putDouble("delta", it) }
+                delta?.let { dataMap.putDouble("delta", it) }
                 snapshot.batteryPercent?.let { dataMap.putDouble("batteryPercent", it) }
                 snapshot.basalRate?.let { dataMap.putDouble("basalRate", it) }
                 snapshot.lastBolus?.let { dataMap.putDouble("lastBolus", it) }
@@ -199,6 +209,16 @@ class GlucosePollingService : android.app.Service() {
         pollingJob?.cancel()
         scope.cancel()
         super.onDestroy()
+    }
+
+    private fun computeDelta(history: List<GlucoseHistoryPoint>, deltaMinutes: Int): Double? {
+        if (history.size < 2) return null
+        val latest = history.last()
+        val targetTime = latest.timestamp - deltaMinutes * 60L
+        val closest = history.filter { it.timestamp <= targetTime }
+            .minByOrNull { Math.abs(it.timestamp - targetTime) }
+            ?: return null
+        return latest.glucoseMmol - closest.glucoseMmol
     }
 
     companion object {

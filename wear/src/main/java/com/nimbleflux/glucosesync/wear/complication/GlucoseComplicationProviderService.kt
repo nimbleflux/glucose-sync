@@ -36,23 +36,27 @@ class GlucoseComplicationProviderService : ComplicationDataSourceService() {
         if (glucose <= 0f) {
             val previewText = getString(R.string.complication_preview_glucose_text)
             val previewDesc = getString(R.string.complication_preview_glucose_content_description)
+            val trendImg = ComplicationIcons.trendIcon(this, trend)
             val data = when (request.complicationType) {
                 ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                     text = PlainComplicationText.Builder(previewText).build(),
                     contentDescription = PlainComplicationText.Builder(previewDesc).build()
-                ).setTapAction(tapAction()).build()
+                ).apply { trendImg?.let { setMonochromaticImage(MonochromaticImage.Builder(it).build()) } }
+                    .setTapAction(tapAction()).build()
                 ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
                     text = PlainComplicationText.Builder(previewText).build(),
                     contentDescription = PlainComplicationText.Builder(previewDesc).build()
                 ).setTitle(
                     PlainComplicationText.Builder(getString(R.string.complication_title_glucose)).build()
-                ).setTapAction(tapAction()).build()
+                ).apply { trendImg?.let { setSmallImage(SmallImage.Builder(it, SmallImageType.ICON).build()) } }
+                    .setTapAction(tapAction()).build()
                 ComplicationType.RANGED_VALUE -> RangedValueComplicationData.Builder(
                     value = 5.6f,
                     min = 0.0f,
                     max = 22.0f,
                     contentDescription = PlainComplicationText.Builder(previewDesc).build()
                 ).setText(PlainComplicationText.Builder(previewText).build())
+                    .apply { trendImg?.let { setMonochromaticImage(MonochromaticImage.Builder(it).build()) } }
                     .setTapAction(tapAction()).build()
                 else -> NoDataComplicationData()
             }
@@ -67,22 +71,25 @@ class GlucoseComplicationProviderService : ComplicationDataSourceService() {
 
         val glucoseText = String.format("%.1f", displayGlucose)
         val glucoseContentDesc = getString(R.string.complication_content_description_glucose, glucoseText, unit)
-        val displayText = if (trend.isNotEmpty()) "$trend $glucoseText" else glucoseText
+
+        val trendImg = ComplicationIcons.trendIcon(this, trend)
 
         val data = when (request.complicationType) {
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
-                text = PlainComplicationText.Builder(displayText).build(),
+                text = PlainComplicationText.Builder(glucoseText).build(),
                 contentDescription = PlainComplicationText.Builder(glucoseContentDesc).build()
-            ).setTapAction(tapAction()).build()
+            ).apply { trendImg?.let { setMonochromaticImage(MonochromaticImage.Builder(it).build()) } }
+                .setTapAction(tapAction()).build()
 
             ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
-                text = PlainComplicationText.Builder(displayText).build(),
+                text = PlainComplicationText.Builder(glucoseText).build(),
                 contentDescription = PlainComplicationText.Builder(glucoseContentDesc).build()
             ).setTitle(
                 PlainComplicationText.Builder(
                     if (stale) getString(R.string.glucose_stale) else getString(R.string.complication_title_glucose)
                 ).build()
-            ).setTapAction(tapAction()).build()
+            ).apply { trendImg?.let { setSmallImage(SmallImage.Builder(it, SmallImageType.ICON).build()) } }
+                .setTapAction(tapAction()).build()
 
             ComplicationType.RANGED_VALUE -> RangedValueComplicationData.Builder(
                 value = displayGlucose,
@@ -90,38 +97,40 @@ class GlucoseComplicationProviderService : ComplicationDataSourceService() {
                 max = maxVal,
                 contentDescription = PlainComplicationText.Builder(glucoseContentDesc).build()
             ).setText(
-                PlainComplicationText.Builder(displayText).build()
-            ).setTapAction(tapAction()).build()
+                PlainComplicationText.Builder(glucoseText).build()
+            ).apply { trendImg?.let { setMonochromaticImage(MonochromaticImage.Builder(it).build()) } }
+                .setTapAction(tapAction()).build()
 
             else -> {
                 listener.onComplicationData(NoDataComplicationData())
                 return
             }
         }
-
         listener.onComplicationData(data)
     }
 
     override fun getPreviewData(type: ComplicationType): ComplicationData {
         val previewText = getString(R.string.complication_preview_glucose_text)
         val previewDesc = getString(R.string.complication_preview_glucose_content_description)
+        val trendImg = ComplicationIcons.trendIcon(this, "\u2192")
         return when (type) {
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                 text = PlainComplicationText.Builder(previewText).build(),
                 contentDescription = PlainComplicationText.Builder(previewDesc).build()
-            ).build()
+            ).apply { trendImg?.let { setMonochromaticImage(MonochromaticImage.Builder(it).build()) } }.build()
             ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
                 text = PlainComplicationText.Builder(previewText).build(),
                 contentDescription = PlainComplicationText.Builder(previewDesc).build()
             ).setTitle(
                 PlainComplicationText.Builder(getString(R.string.complication_title_glucose)).build()
-            ).build()
+            ).apply { trendImg?.let { setSmallImage(SmallImage.Builder(it, SmallImageType.ICON).build()) } }.build()
             ComplicationType.RANGED_VALUE -> RangedValueComplicationData.Builder(
                 value = 5.6f,
                 min = 0.0f,
                 max = 22.0f,
                 contentDescription = PlainComplicationText.Builder(previewDesc).build()
-            ).setText(PlainComplicationText.Builder(previewText).build()).build()
+            ).setText(PlainComplicationText.Builder(previewText).build())
+                .apply { trendImg?.let { setMonochromaticImage(MonochromaticImage.Builder(it).build()) } }.build()
             else -> NoDataComplicationData()
         }
     }

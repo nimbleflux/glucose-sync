@@ -19,6 +19,17 @@ class IobComplicationProviderService : ComplicationDataSourceService() {
         PendingIntent.FLAG_IMMUTABLE
     )
 
+    private val dropletImage by lazy {
+        SmallImage.Builder(
+            ComplicationIcons.dropletIcon(this),
+            SmallImageType.ICON
+        ).build()
+    }
+
+    private val dropletMono by lazy {
+        MonochromaticImage.Builder(ComplicationIcons.dropletIcon(this)).build()
+    }
+
     override fun onComplicationRequest(
         request: ComplicationRequest,
         listener: ComplicationRequestListener
@@ -30,13 +41,15 @@ class IobComplicationProviderService : ComplicationDataSourceService() {
                 ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                     text = PlainComplicationText.Builder("--").build(),
                     contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_iob, "--")).build()
-                ).setTapAction(tapAction()).build()
+                ).setMonochromaticImage(dropletMono)
+                    .setTapAction(tapAction()).build()
                 ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
                     text = PlainComplicationText.Builder("-- U").build(),
                     contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_iob, "--")).build()
                 ).setTitle(
                     PlainComplicationText.Builder(getString(R.string.complication_title_iob)).build()
-                ).setTapAction(tapAction()).build()
+                ).setSmallImage(dropletImage)
+                    .setTapAction(tapAction()).build()
                 else -> NoDataComplicationData()
             }
             listener.onComplicationData(data)
@@ -49,14 +62,16 @@ class IobComplicationProviderService : ComplicationDataSourceService() {
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                 text = PlainComplicationText.Builder(iobText).build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_iob, iobText)).build()
-            ).setTapAction(tapAction()).build()
+            ).setMonochromaticImage(dropletMono)
+                .setTapAction(tapAction()).build()
 
             ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
                 text = PlainComplicationText.Builder("$iobText U").build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_iob, iobText)).build()
             ).setTitle(
                 PlainComplicationText.Builder(getString(R.string.complication_title_iob)).build()
-            ).setTapAction(tapAction()).build()
+            ).setSmallImage(dropletImage)
+                .setTapAction(tapAction()).build()
 
             else -> {
                 listener.onComplicationData(NoDataComplicationData())
@@ -71,13 +86,13 @@ class IobComplicationProviderService : ComplicationDataSourceService() {
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                 text = PlainComplicationText.Builder("1.2").build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_iob, "1.2")).build()
-            ).build()
+            ).setMonochromaticImage(dropletMono).build()
             ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
                 text = PlainComplicationText.Builder("1.2 U").build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_iob, "1.2")).build()
             ).setTitle(
                 PlainComplicationText.Builder(getString(R.string.complication_title_iob)).build()
-            ).build()
+            ).setSmallImage(dropletImage).build()
             else -> NoDataComplicationData()
         }
     }

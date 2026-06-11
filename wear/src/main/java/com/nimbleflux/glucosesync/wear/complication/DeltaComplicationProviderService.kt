@@ -23,21 +23,27 @@ class DeltaComplicationProviderService : ComplicationDataSourceService() {
         request: ComplicationRequest,
         listener: ComplicationRequestListener
     ) {
-        val delta = repo.state.value.delta
-        val unit = repo.state.value.unit
+        val state = repo.state.value
+        val delta = state.delta
+        val trend = state.trend
+        val unit = state.unit
+
+        val trendImg = ComplicationIcons.trendIcon(this, trend)
 
         if (delta == null) {
             val data = when (request.complicationType) {
                 ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                     text = PlainComplicationText.Builder("--").build(),
                     contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_delta, "--")).build()
-                ).setTapAction(tapAction()).build()
+                ).apply { trendImg?.let { setMonochromaticImage(MonochromaticImage.Builder(it).build()) } }
+                    .setTapAction(tapAction()).build()
                 ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
                     text = PlainComplicationText.Builder("--").build(),
                     contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_delta, "--")).build()
                 ).setTitle(
                     PlainComplicationText.Builder(getString(R.string.complication_title_delta)).build()
-                ).setTapAction(tapAction()).build()
+                ).apply { trendImg?.let { setSmallImage(SmallImage.Builder(it, SmallImageType.ICON).build()) } }
+                    .setTapAction(tapAction()).build()
                 else -> NoDataComplicationData()
             }
             listener.onComplicationData(data)
@@ -51,14 +57,16 @@ class DeltaComplicationProviderService : ComplicationDataSourceService() {
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                 text = PlainComplicationText.Builder(deltaText).build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_delta, deltaText)).build()
-            ).setTapAction(tapAction()).build()
+            ).apply { trendImg?.let { setMonochromaticImage(MonochromaticImage.Builder(it).build()) } }
+                .setTapAction(tapAction()).build()
 
             ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
                 text = PlainComplicationText.Builder("$deltaText $unit").build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_delta, deltaText)).build()
             ).setTitle(
                 PlainComplicationText.Builder(getString(R.string.complication_title_delta)).build()
-            ).setTapAction(tapAction()).build()
+            ).apply { trendImg?.let { setSmallImage(SmallImage.Builder(it, SmallImageType.ICON).build()) } }
+                .setTapAction(tapAction()).build()
 
             else -> {
                 listener.onComplicationData(NoDataComplicationData())
@@ -69,17 +77,18 @@ class DeltaComplicationProviderService : ComplicationDataSourceService() {
     }
 
     override fun getPreviewData(type: ComplicationType): ComplicationData {
+        val trendImg = ComplicationIcons.trendIcon(this, "\u2192")
         return when (type) {
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                 text = PlainComplicationText.Builder("+0.3").build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_delta, "+0.3")).build()
-            ).build()
+            ).apply { trendImg?.let { setMonochromaticImage(MonochromaticImage.Builder(it).build()) } }.build()
             ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
                 text = PlainComplicationText.Builder("+0.3 mmol/L").build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_delta, "+0.3")).build()
             ).setTitle(
                 PlainComplicationText.Builder(getString(R.string.complication_title_delta)).build()
-            ).build()
+            ).apply { trendImg?.let { setSmallImage(SmallImage.Builder(it, SmallImageType.ICON).build()) } }.build()
             else -> NoDataComplicationData()
         }
     }

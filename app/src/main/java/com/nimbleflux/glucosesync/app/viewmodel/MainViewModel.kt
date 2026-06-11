@@ -405,15 +405,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             currentHistory.trimTo24h()
                         }
 
-                        val trend = if (snapshot.trend == TrendArrow.UNKNOWN) {
-                            computeTrend(snapshot.glucose, history) ?: snapshot.trend
-                        } else {
-                            snapshot.trend
-                        }
-
                         _uiState.update {
                             val deltaMin = it.deltaMinutes
                             val computedDelta = computeDelta(history, deltaMin) ?: snapshot.delta
+                            val trend = if (snapshot.trend == TrendArrow.UNKNOWN) {
+                                TrendArrow.fromDelta(computedDelta ?: 0.0)
+                            } else {
+                                snapshot.trend
+                            }
                             it.copy(
                                 isLoading = false,
                                 glucose = snapshot.glucose,
@@ -521,21 +520,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return latest.glucoseMmol - closest.glucoseMmol
     }
 
-    private fun computeTrend(currentGlucose: Double?, history: List<GlucoseHistoryPoint>): TrendArrow? {
-        if (currentGlucose == null || history.size < 2) return null
-        val now = System.currentTimeMillis() / 1000
-        val windowStart = now - 900
-        val recent = history.filter { it.timestamp >= windowStart }
-        if (recent.size < 2) return null
-        val oldest = recent.first()
-        val newest = recent.last()
-        val timeDeltaMinutes = (newest.timestamp - oldest.timestamp) / 60.0
-        if (timeDeltaMinutes < 1) return null
-        val delta = newest.glucoseMmol - oldest.glucoseMmol
-        val ratePerMinute = delta / timeDeltaMinutes
-        return TrendArrow.fromRate(ratePerMinute)
-    }
-
     private fun List<GlucoseHistoryPoint>.trimTo24h(): List<GlucoseHistoryPoint> {
         val cutoff = System.currentTimeMillis() / 1000 - 86400
         return this.filter { it.timestamp >= cutoff }
@@ -578,14 +562,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun syncToWatch(snapshot: GlucoseSnapshot) {
         try {
             val glucose = snapshot.glucose ?: return
+            val trendSymbol = _uiState.value.trend.ifEmpty { snapshot.trend.symbol }
+            val delta = _uiState.value.delta ?: snapshot.delta
             val dataClient = Wearable.getDataClient(getApplication<Application>())
             val request = PutDataMapRequest.create("/glucose").apply {
                 dataMap.putDouble("glucose", glucose)
                 dataMap.putLong("timestamp", snapshot.timestamp)
-                dataMap.putString("trend", snapshot.trend.symbol)
+                dataMap.putString("trend", trendSymbol)
                 dataMap.putString("unit", snapshot.unit)
                 snapshot.iob?.let { dataMap.putDouble("iob", it) }
-                snapshot.delta?.let { dataMap.putDouble("delta", it) }
+                delta?.let { dataMap.putDouble("delta", it) }
                 snapshot.batteryPercent?.let { dataMap.putDouble("batteryPercent", it) }
                 snapshot.basalRate?.let { dataMap.putDouble("basalRate", it) }
                 snapshot.lastBolus?.let { dataMap.putDouble("lastBolus", it) }

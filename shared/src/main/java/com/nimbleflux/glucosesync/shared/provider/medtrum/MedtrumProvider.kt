@@ -140,13 +140,13 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
                 val glucose = sensor.glucose
                 val hasSensor = glucose != null && glucose > 0
 
-                val history = parseSgHistory(chart.sg)
-                val trend = computeTrend(glucose, history)
-                val pump = response.data.pump_status
-
+                val sgResult = parseSgHistory(chart.sg)
+                val history = sgResult.history
                 val delta = if (history.size >= 2) {
                     history.last().glucoseMmol - history[history.size - 2].glucoseMmol
                 } else null
+                val trend = computeTrend(sgResult.latestRate, delta)
+                val pump = response.data.pump_status
 
                 val timeInRange = if (history.isNotEmpty()) {
                     val high = chart.blos_high
@@ -196,29 +196,31 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
 
     fun getRealname(): String = realname
 
-    private fun parseSgHistory(sg: List<kotlinx.serialization.json.JsonElement>): List<GlucoseHistoryPoint> {
-        return sg.mapNotNull { element ->
+    private data class SgParseResult(
+        val history: List<GlucoseHistoryPoint>,
+        val latestRate: Double?
+    )
+
+    private fun parseSgHistory(sg: List<kotlinx.serialization.json.JsonElement>): SgParseResult {
+        var latestRate: Double? = null
+        val history = sg.mapNotNull { element ->
             val arr = element as? JsonArray ?: return@mapNotNull null
             if (arr.size < 2) return@mapNotNull null
             val ts = ((arr[0] as? JsonPrimitive)?.doubleOrNull?.toLong()) ?: return@mapNotNull null
             val glucose = (arr[1] as? JsonPrimitive)?.doubleOrNull ?: return@mapNotNull null
-            if (ts > 0 && glucose > 0) GlucoseHistoryPoint(ts, glucose) else null
+            val rate = if (arr.size >= 3) (arr[2] as? JsonPrimitive)?.doubleOrNull else null
+            if (ts > 0 && glucose > 0) {
+                if (rate != null) latestRate = rate
+                GlucoseHistoryPoint(ts, glucose)
+            } else null
         }.distinctBy { it.timestamp }.sortedBy { it.timestamp }
+        return SgParseResult(history, latestRate)
     }
 
-    private fun computeTrend(currentGlucose: Double?, history: List<GlucoseHistoryPoint>): TrendArrow {
-        if (currentGlucose == null || history.size < 2) return TrendArrow.UNKNOWN
-        val now = System.currentTimeMillis() / 1000
-        val windowStart = now - 900
-        val recent = history.filter { it.timestamp >= windowStart }
-        if (recent.size < 2) return TrendArrow.UNKNOWN
-        val oldest = recent.first()
-        val newest = recent.last()
-        val timeDeltaMinutes = (newest.timestamp - oldest.timestamp) / 60.0
-        if (timeDeltaMinutes < 1) return TrendArrow.UNKNOWN
-        val delta = newest.glucoseMmol - oldest.glucoseMmol
-        val ratePerMinute = delta / timeDeltaMinutes
-        return TrendArrow.fromRate(ratePerMinute)
+    private fun computeTrend(rate: Double?, delta: Double?): TrendArrow {
+        if (rate != null && rate != 0.0) return TrendArrow.fromRate(rate)
+        if (delta != null) return TrendArrow.fromDelta(delta)
+        return TrendArrow.UNKNOWN
     }
 
     private fun parseAlerts(

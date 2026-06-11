@@ -19,6 +19,14 @@ class BatteryComplicationProviderService : ComplicationDataSourceService() {
         PendingIntent.FLAG_IMMUTABLE
     )
 
+    private val batteryMono by lazy {
+        MonochromaticImage.Builder(ComplicationIcons.batteryIcon(this)).build()
+    }
+
+    private val batterySmall by lazy {
+        SmallImage.Builder(ComplicationIcons.batteryIcon(this), SmallImageType.ICON).build()
+    }
+
     override fun onComplicationRequest(
         request: ComplicationRequest,
         listener: ComplicationRequestListener
@@ -30,19 +38,22 @@ class BatteryComplicationProviderService : ComplicationDataSourceService() {
                 ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                     text = PlainComplicationText.Builder("--").build(),
                     contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_battery, "--")).build()
-                ).setTapAction(tapAction()).build()
+                ).setMonochromaticImage(batteryMono)
+                    .setTapAction(tapAction()).build()
                 ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
                     text = PlainComplicationText.Builder("--").build(),
                     contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_battery, "--")).build()
                 ).setTitle(
                     PlainComplicationText.Builder(getString(R.string.complication_title_battery)).build()
-                ).setTapAction(tapAction()).build()
+                ).setSmallImage(batterySmall)
+                    .setTapAction(tapAction()).build()
                 ComplicationType.RANGED_VALUE -> RangedValueComplicationData.Builder(
                     value = 0.5f,
                     min = 0.0f,
                     max = 1.0f,
                     contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_battery, "--")).build()
                 ).setText(PlainComplicationText.Builder("--").build())
+                    .setMonochromaticImage(batteryMono)
                     .setTapAction(tapAction()).build()
                 else -> NoDataComplicationData()
             }
@@ -56,14 +67,16 @@ class BatteryComplicationProviderService : ComplicationDataSourceService() {
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                 text = PlainComplicationText.Builder("$pctText%").build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_battery, pctText)).build()
-            ).setTapAction(tapAction()).build()
+            ).setMonochromaticImage(batteryMono)
+                .setTapAction(tapAction()).build()
 
             ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
                 text = PlainComplicationText.Builder("$pctText%").build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_battery, pctText)).build()
             ).setTitle(
                 PlainComplicationText.Builder(getString(R.string.complication_title_battery)).build()
-            ).setTapAction(tapAction()).build()
+            ).setSmallImage(batterySmall)
+                .setTapAction(tapAction()).build()
 
             ComplicationType.RANGED_VALUE -> RangedValueComplicationData.Builder(
                 value = battery.toFloat(),
@@ -71,6 +84,7 @@ class BatteryComplicationProviderService : ComplicationDataSourceService() {
                 max = 1.0f,
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_battery, pctText)).build()
             ).setText(PlainComplicationText.Builder("$pctText%").build())
+                .setMonochromaticImage(batteryMono)
                 .setTapAction(tapAction()).build()
 
             else -> {
@@ -86,19 +100,20 @@ class BatteryComplicationProviderService : ComplicationDataSourceService() {
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                 text = PlainComplicationText.Builder("91%").build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_battery, "91")).build()
-            ).build()
+            ).setMonochromaticImage(batteryMono).build()
             ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
                 text = PlainComplicationText.Builder("91%").build(),
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_battery, "91")).build()
             ).setTitle(
                 PlainComplicationText.Builder(getString(R.string.complication_title_battery)).build()
-            ).build()
+            ).setSmallImage(batterySmall).build()
             ComplicationType.RANGED_VALUE -> RangedValueComplicationData.Builder(
                 value = 0.91f,
                 min = 0.0f,
                 max = 1.0f,
                 contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_battery, "91")).build()
-            ).setText(PlainComplicationText.Builder("91%").build()).build()
+            ).setText(PlainComplicationText.Builder("91%").build())
+                .setMonochromaticImage(batteryMono).build()
             else -> NoDataComplicationData()
         }
     }
