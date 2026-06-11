@@ -36,15 +36,17 @@ class GlucoseDeltaComplicationProviderService : ComplicationDataSourceService() 
         val unit = state.unit
 
         if (glucose <= 0.0) {
+            val previewText = "5.6 (+0.3)"
+            val previewLong = "5.6 (+0.3) $unit"
             val data = when (request.complicationType) {
                 ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
-                    text = PlainComplicationText.Builder("--").build(),
-                    contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_glucose, "--", unit)).build()
+                    text = PlainComplicationText.Builder(previewText).build(),
+                    contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_glucose_delta, "5.6", unit, " +0.3")).build()
                 ).setMonochromaticImage(trendMono(trend))
                     .setTapAction(tapAction()).build()
                 ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
-                    text = PlainComplicationText.Builder("--").build(),
-                    contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_glucose, "--", unit)).build()
+                    text = PlainComplicationText.Builder(previewLong).build(),
+                    contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_glucose_delta, "5.6", unit, " +0.3")).build()
                 ).setTitle(
                     PlainComplicationText.Builder(getString(R.string.complication_title_glucose)).build()
                 ).setSmallImage(trendSmall(trend))

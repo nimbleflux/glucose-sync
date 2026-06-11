@@ -37,13 +37,13 @@ class DeltaComplicationProviderService : ComplicationDataSourceService() {
         if (delta == null) {
             val data = when (request.complicationType) {
                 ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
-                    text = PlainComplicationText.Builder("--").build(),
-                    contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_delta, "--")).build()
+                    text = PlainComplicationText.Builder("+0.3").build(),
+                    contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_delta, "+0.3")).build()
                 ).setMonochromaticImage(trendMono(trend))
                     .setTapAction(tapAction()).build()
                 ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
-                    text = PlainComplicationText.Builder("--").build(),
-                    contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_delta, "--")).build()
+                    text = PlainComplicationText.Builder("+0.3 $unit").build(),
+                    contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_delta, "+0.3")).build()
                 ).setTitle(
                     PlainComplicationText.Builder(getString(R.string.complication_title_delta)).build()
                 ).setSmallImage(trendSmall(trend))
