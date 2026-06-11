@@ -89,20 +89,29 @@ object GlucoseNotificationBuilder {
     }
 
     private fun createGlucoseIcon(context: Context, glucoseText: String): Icon {
-        val size = 48
+        val density = context.resources.displayMetrics.density
+        val size = (24 * density).toInt().coerceAtLeast(48)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val paint = Paint().apply {
-            color = Color.WHITE
-            textSize = if (glucoseText.length > 3) 16f else 22f
-            typeface = Typeface.DEFAULT_BOLD
-            isAntiAlias = true
-            textAlign = Paint.Align.CENTER
-        }
+
+        val radius = size / 2f
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        paint.color = Color.WHITE
+        paint.style = Paint.Style.FILL
+        canvas.drawCircle(radius, radius, radius, paint)
+
+        paint.color = Color.BLACK
+        paint.style = Paint.Style.FILL
+        paint.typeface = Typeface.DEFAULT_BOLD
+        paint.textSize = if (glucoseText.length > 3) size * 0.32f else size * 0.42f
+        paint.textAlign = Paint.Align.CENTER
+
         val textBounds = Rect()
         paint.getTextBounds(glucoseText, 0, glucoseText.length, textBounds)
-        val y = (size / 2f) + (textBounds.height() / 2f)
-        canvas.drawText(glucoseText, size / 2f, y, paint)
+        val textY = radius + textBounds.height() / 2f
+        canvas.drawText(glucoseText, radius, textY, paint)
+
         return Icon.createWithBitmap(bitmap)
     }
 
