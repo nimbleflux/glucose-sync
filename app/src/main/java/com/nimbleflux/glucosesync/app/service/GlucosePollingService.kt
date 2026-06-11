@@ -16,6 +16,7 @@ import com.nimbleflux.glucosesync.app.data.SettingsStore
 import com.nimbleflux.glucosesync.app.R
 import com.nimbleflux.glucosesync.app.ui.MainActivity
 import com.google.android.gms.wearable.DataClient
+import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.*
@@ -31,12 +32,22 @@ class GlucosePollingService : android.app.Service() {
     private var provider: GlucoseProvider? = null
     private val accumulatedHistory = mutableListOf<GlucoseHistoryPoint>()
 
+    private val messageListener = MessageClient.OnMessageReceivedListener { messageEvent ->
+        if (messageEvent.path == "/request_glucose") {
+            if (BuildConfig.DEBUG) Log.d(TAG, "Watch requested fresh data")
+            scope.launch {
+                fetchAndSync()
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         dataClient = Wearable.getDataClient(this)
         credentialStore = CredentialStore(this)
         settingsStore = SettingsStore(this)
         alertManager = GlucoseAlertManager(this)
+        Wearable.getMessageClient(this).addListener(messageListener)
     }
 
     override fun onBind(intent: Intent?): android.os.IBinder? = null
@@ -94,82 +105,86 @@ class GlucosePollingService : android.app.Service() {
             }
 
             while (isActive) {
-                try {
-                    val result = p.fetchGlucose()
-                    result.onSuccess { snapshot ->
-                        if (snapshot.glucose != null) {
-                            val glucose = snapshot.glucose!!
-                            val timestamp = snapshot.timestamp
-                            if (BuildConfig.DEBUG) Log.d(TAG, "Glucose: $glucose at $timestamp")
-
-                            if (snapshot.history.isNotEmpty()) {
-                                accumulatedHistory.clear()
-                                accumulatedHistory.addAll(snapshot.history)
-                            } else {
-                                accumulatedHistory.add(GlucoseHistoryPoint(timestamp, glucose))
-                            }
-                            val cutoff = System.currentTimeMillis() / 1000 - 86400
-                            while (accumulatedHistory.isNotEmpty() && accumulatedHistory.first().timestamp < cutoff) {
-                                accumulatedHistory.removeAt(0)
-                            }
-
-                            val deltaMin = try { settingsStore.getDeltaMinutes() } catch (_: Exception) { 5 }
-                            val computedDelta = computeDelta(accumulatedHistory, deltaMin) ?: snapshot.delta
-                            val trend = if (snapshot.trend == TrendArrow.UNKNOWN) {
-                                TrendArrow.fromDelta(computedDelta ?: 0.0)
-                            } else {
-                                snapshot.trend
-                            }
-                            val trendSymbol = trend.symbol
-
-                            syncToWatch(glucose, timestamp, trendSymbol, computedDelta, snapshot.unit, snapshot)
-
-                            val alertsEnabled = try { settingsStore.getAlertsEnabled() } catch (_: Exception) { true }
-                            val high = try { settingsStore.getHighThresholdMmol() } catch (_: Exception) { 10.0 }
-                            val low = try { settingsStore.getLowThresholdMmol() } catch (_: Exception) { 3.9 }
-                            val dnd = try { settingsStore.getOverrideDnd() } catch (_: Exception) { true }
-                            val repeat = try { settingsStore.getAlertRepeatMinutes() } catch (_: Exception) { 5 }
-                            val sound = try { settingsStore.getAlertSound() } catch (_: Exception) { true }
-                            val vibrate = try { settingsStore.getAlertVibrate() } catch (_: Exception) { true }
-                            val vibrateDuration = try { settingsStore.getAlertVibrateDuration() } catch (_: Exception) { 3 }
-
-                            alertManager.checkAndAlert(
-                                glucoseMmol = glucose,
-                                unit = snapshot.unit,
-                                highThresholdMmol = high,
-                                lowThresholdMmol = low,
-                                alertsEnabled = alertsEnabled,
-                                overrideDnd = dnd,
-                                repeatMinutes = repeat,
-                                soundEnabled = sound,
-                                vibrateEnabled = vibrate,
-                                vibrateDurationSeconds = vibrateDuration
-                            )
-                        }
-                    }.onFailure { e ->
-                        if (BuildConfig.DEBUG) Log.e(TAG, "Polling error: ${e.message}")
-                        if (p is LibreLinkUpProvider) {
-                            val msg = e.message ?: ""
-                            if (msg.contains("403") || msg.contains("401") || msg.contains("Session expired")) {
-                                if (BuildConfig.DEBUG) Log.d(TAG, "Attempting LibreLinkUp re-auth")
-                                val reAuthed = p.reAuthenticate()
-                                if (reAuthed) {
-                                    credentialStore.saveSelectedProvider("libre_linkup")
-                                    if (BuildConfig.DEBUG) Log.d(TAG, "LibreLinkUp re-auth succeeded")
-                                } else {
-                                    if (BuildConfig.DEBUG) Log.e(TAG, "LibreLinkUp re-auth failed")
-                                }
-                            }
-                        }
-                    }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    if (BuildConfig.DEBUG) Log.e(TAG, "Polling exception: ${e.message}")
-                }
-
+                fetchAndSync()
                 delay(POLLING_INTERVAL_MS)
             }
+        }
+    }
+
+    private suspend fun fetchAndSync() {
+        val p = provider ?: return
+        try {
+            val result = p.fetchGlucose()
+            result.onSuccess { snapshot ->
+                if (snapshot.glucose != null) {
+                    val glucose = snapshot.glucose!!
+                    val timestamp = snapshot.timestamp
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Glucose: $glucose at $timestamp")
+
+                    if (snapshot.history.isNotEmpty()) {
+                        accumulatedHistory.clear()
+                        accumulatedHistory.addAll(snapshot.history)
+                    } else {
+                        accumulatedHistory.add(GlucoseHistoryPoint(timestamp, glucose))
+                    }
+                    val cutoff = System.currentTimeMillis() / 1000 - 86400
+                    while (accumulatedHistory.isNotEmpty() && accumulatedHistory.first().timestamp < cutoff) {
+                        accumulatedHistory.removeAt(0)
+                    }
+
+                    val deltaMin = try { settingsStore.getDeltaMinutes() } catch (_: Exception) { 5 }
+                    val computedDelta = computeDelta(accumulatedHistory, deltaMin) ?: snapshot.delta
+                    val trend = if (snapshot.trend == TrendArrow.UNKNOWN) {
+                        TrendArrow.fromDelta(computedDelta ?: 0.0)
+                    } else {
+                        snapshot.trend
+                    }
+                    val trendSymbol = trend.symbol
+
+                    syncToWatch(glucose, timestamp, trendSymbol, computedDelta, snapshot.unit, snapshot)
+
+                    val alertsEnabled = try { settingsStore.getAlertsEnabled() } catch (_: Exception) { true }
+                    val high = try { settingsStore.getHighThresholdMmol() } catch (_: Exception) { 10.0 }
+                    val low = try { settingsStore.getLowThresholdMmol() } catch (_: Exception) { 3.9 }
+                    val dnd = try { settingsStore.getOverrideDnd() } catch (_: Exception) { true }
+                    val repeat = try { settingsStore.getAlertRepeatMinutes() } catch (_: Exception) { 5 }
+                    val sound = try { settingsStore.getAlertSound() } catch (_: Exception) { true }
+                    val vibrate = try { settingsStore.getAlertVibrate() } catch (_: Exception) { true }
+                    val vibrateDuration = try { settingsStore.getAlertVibrateDuration() } catch (_: Exception) { 3 }
+
+                    alertManager.checkAndAlert(
+                        glucoseMmol = glucose,
+                        unit = snapshot.unit,
+                        highThresholdMmol = high,
+                        lowThresholdMmol = low,
+                        alertsEnabled = alertsEnabled,
+                        overrideDnd = dnd,
+                        repeatMinutes = repeat,
+                        soundEnabled = sound,
+                        vibrateEnabled = vibrate,
+                        vibrateDurationSeconds = vibrateDuration
+                    )
+                }
+            }.onFailure { e ->
+                if (BuildConfig.DEBUG) Log.e(TAG, "Polling error: ${e.message}")
+                if (p is LibreLinkUpProvider) {
+                    val msg = e.message ?: ""
+                    if (msg.contains("403") || msg.contains("401") || msg.contains("Session expired")) {
+                        if (BuildConfig.DEBUG) Log.d(TAG, "Attempting LibreLinkUp re-auth")
+                        val reAuthed = p.reAuthenticate()
+                        if (reAuthed) {
+                            credentialStore.saveSelectedProvider("libre_linkup")
+                            if (BuildConfig.DEBUG) Log.d(TAG, "LibreLinkUp re-auth succeeded")
+                        } else {
+                            if (BuildConfig.DEBUG) Log.e(TAG, "LibreLinkUp re-auth failed")
+                        }
+                    }
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) Log.e(TAG, "Polling exception: ${e.message}")
         }
     }
 
@@ -206,6 +221,7 @@ class GlucosePollingService : android.app.Service() {
     }
 
     override fun onDestroy() {
+        Wearable.getMessageClient(this).removeListener(messageListener)
         pollingJob?.cancel()
         scope.cancel()
         super.onDestroy()
