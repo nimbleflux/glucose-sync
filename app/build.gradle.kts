@@ -12,8 +12,8 @@ android {
         applicationId = "com.nimbleflux.glucosesync"
         minSdk = 26
         targetSdk = 36
-        versionCode = 18
-        versionName = "1.3.14"
+        versionCode = 19
+        versionName = "1.3.15"
     }
 
     signingConfigs {
