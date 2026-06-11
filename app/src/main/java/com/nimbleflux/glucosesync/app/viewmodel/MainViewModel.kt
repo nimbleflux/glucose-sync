@@ -324,6 +324,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loginDemo() {
         val demoHistory = DemoData.generateHistory()
+        val snapshot = DemoData.snapshot(demoHistory)
         _uiState.update {
             it.copy(
                 isLoggedIn = true,
@@ -331,10 +332,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 realname = DemoData.demoDisplayName,
                 isDemo = true,
                 sensorActive = true,
-                history = demoHistory
+                history = demoHistory,
+                glucose = snapshot.glucose,
+                trend = snapshot.trend.symbol,
+                lastUpdate = snapshot.timestamp,
+                delta = snapshot.delta,
+                iob = snapshot.iob,
+                batteryPercent = snapshot.batteryPercent,
+                basalRate = snapshot.basalRate,
+                lastBolus = snapshot.lastBolus,
+                lastBolusTime = snapshot.lastBolusTime,
+                remainingDose = snapshot.remainingDose,
+                alerts = snapshot.alerts
             )
         }
-        refreshDemoGlucose()
         startDemoPolling()
     }
 
@@ -344,16 +355,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         currentHistory.add(GlucoseHistoryPoint(snapshot.timestamp, snapshot.glucose ?: 5.6))
         val trimmed = currentHistory.trimTo24h()
 
-        val unit = _uiState.value.glucoseUnit
         _uiState.update {
             it.copy(
                 glucose = snapshot.glucose,
-                glucoseUnit = unit,
                 trend = snapshot.trend.symbol,
                 lastUpdate = snapshot.timestamp,
                 sensorActive = true,
                 error = null,
-                history = trimmed
+                history = trimmed,
+                delta = snapshot.delta,
+                iob = snapshot.iob,
+                batteryPercent = snapshot.batteryPercent,
+                basalRate = snapshot.basalRate,
+                lastBolus = snapshot.lastBolus,
+                lastBolusTime = snapshot.lastBolusTime,
+                remainingDose = snapshot.remainingDose,
+                alerts = snapshot.alerts
             )
         }
         snapshot.glucose?.let { _ ->
@@ -555,7 +572,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         provider?.logout()
         viewModelScope.launch {
             credentialStore.clear()
-            _uiState.update { MainUiState(glucoseUnit = settingsStore.getUnit()) }
+            _uiState.update { MainUiState(glucoseUnit = settingsStore.getUnit(), restoringSession = false) }
         }
     }
 
