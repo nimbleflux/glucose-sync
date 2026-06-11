@@ -101,10 +101,10 @@ object GlucoseNotificationBuilder {
         paint.style = Paint.Style.FILL
         canvas.drawCircle(radius, radius, radius, paint)
 
-        paint.color = Color.BLACK
+        paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
         paint.style = Paint.Style.FILL
         paint.typeface = Typeface.DEFAULT_BOLD
-        paint.textSize = if (glucoseText.length > 3) size * 0.32f else size * 0.42f
+        paint.textSize = if (glucoseText.length > 3) size * 0.28f else size * 0.38f
         paint.textAlign = Paint.Align.CENTER
 
         val textBounds = Rect()
