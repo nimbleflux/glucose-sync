@@ -87,9 +87,13 @@ class GlucosePollingService : android.app.Service() {
     }
 
     private fun updateNotification() {
-        val glucose = lastGlucose ?: return
+        val glucose = lastGlucose ?: run {
+            if (BuildConfig.DEBUG) Log.d(TAG, "updateNotification: lastGlucose is null, skipping")
+            return
+        }
         try {
-            val showIcon = try { settingsStore.getStatusBarGlucose() } catch (_: Exception) { true }
+            val showIcon = try { settingsStore.getStatusBarGlucose() } catch (_: Exception) { false }
+            if (BuildConfig.DEBUG) Log.d(TAG, "updateNotification: glucose=$glucose, showChip=$showIcon, trend=$lastTrend")
             val notification = GlucoseNotificationBuilder.build(
                 context = this,
                 channelId = "medtrum_glucose_polling",

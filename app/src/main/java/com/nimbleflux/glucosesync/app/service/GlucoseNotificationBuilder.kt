@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.util.Log
 import android.widget.RemoteViews
 import com.nimbleflux.glucosesync.app.R
 import com.nimbleflux.glucosesync.app.ui.MainActivity
@@ -13,6 +14,8 @@ import java.util.Date
 import java.util.Locale
 
 object GlucoseNotificationBuilder {
+
+    private const val TAG = "NotifBuilder"
 
     fun build(
         context: Context,
@@ -63,15 +66,19 @@ object GlucoseNotificationBuilder {
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(tapIntent)
             .setOngoing(true)
-            .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
 
         if (showGlucoseIcon) {
             val arrow = trendArrowChar(trend)
             val chipText = if (arrow != null) "$glucoseText $arrow" else glucoseText
+            Log.d(TAG, "Setting shortCriticalText: '$chipText' (length=${chipText.length})")
             builder.setShortCriticalText(chipText)
+        } else {
+            Log.d(TAG, "Status bar chip disabled, using default icon only")
         }
 
-        return builder.build()
+        val notification = builder.build()
+        Log.d(TAG, "Built notification: smallIcon=${notification.smallIcon}, extras=${notification.extras}")
+        return notification
     }
 
     fun buildDefault(context: Context, channelId: String): Notification {
