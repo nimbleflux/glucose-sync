@@ -67,7 +67,8 @@ data class MainUiState(
     val lastBolusTime: Long? = null,
     val remainingDose: Double? = null,
     val deltaMinutes: Int = 5,
-    val alerts: List<AlertEntry> = emptyList()
+    val alerts: List<AlertEntry> = emptyList(),
+    val restoringSession: Boolean = true
 ) {
     val glucoseDisplay: Double?
         get() = glucose?.let { if (glucoseUnit == "mg/dL") it * 18 else it }
@@ -169,8 +170,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     refreshGlucose()
+                } else {
+                    _uiState.update { it.copy(selectedProviderId = null) }
                 }
             }
+            _uiState.update { it.copy(restoringSession = false) }
         }
     }
 

@@ -50,7 +50,8 @@ fun GlucoseChart(
 
     val now = System.currentTimeMillis() / 1000
     val windowSec = 43200.0
-    val timeStart = now - windowSec
+    val earliestData = history.firstOrNull()?.timestamp?.toDouble() ?: (now - windowSec)
+    val timeStart = maxOf(now - windowSec, earliestData)
 
     val density = LocalDensity.current
     val textSizePx: Float = with(density) { 11.sp.toPx() }
