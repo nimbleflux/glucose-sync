@@ -145,7 +145,7 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
                 val delta = if (history.size >= 2) {
                     history.last().glucoseMmol - history[history.size - 2].glucoseMmol
                 } else null
-                val trend = computeTrend(sgResult.latestRate, delta)
+                val trend = computeTrend(delta)
                 val pump = response.data.pump_status
 
                 val timeInRange = if (history.isNotEmpty()) {
@@ -197,28 +197,23 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
     fun getRealname(): String = realname
 
     private data class SgParseResult(
-        val history: List<GlucoseHistoryPoint>,
-        val latestRate: Double?
+        val history: List<GlucoseHistoryPoint>
     )
 
     private fun parseSgHistory(sg: List<kotlinx.serialization.json.JsonElement>): SgParseResult {
-        var latestRate: Double? = null
         val history = sg.mapNotNull { element ->
             val arr = element as? JsonArray ?: return@mapNotNull null
             if (arr.size < 2) return@mapNotNull null
             val ts = ((arr[0] as? JsonPrimitive)?.doubleOrNull?.toLong()) ?: return@mapNotNull null
             val glucose = (arr[1] as? JsonPrimitive)?.doubleOrNull ?: return@mapNotNull null
-            val rate = if (arr.size >= 3) (arr[2] as? JsonPrimitive)?.doubleOrNull else null
             if (ts > 0 && glucose > 0) {
-                if (rate != null) latestRate = rate
                 GlucoseHistoryPoint(ts, glucose)
             } else null
         }.distinctBy { it.timestamp }.sortedBy { it.timestamp }
-        return SgParseResult(history, latestRate)
+        return SgParseResult(history)
     }
 
-    private fun computeTrend(rate: Double?, delta: Double?): TrendArrow {
-        if (rate != null && rate != 0.0) return TrendArrow.fromRate(rate)
+    private fun computeTrend(delta: Double?): TrendArrow {
         if (delta != null) return TrendArrow.fromDelta(delta)
         return TrendArrow.UNKNOWN
     }

@@ -31,6 +31,12 @@ class GlucosePollingService : android.app.Service() {
     private lateinit var alertManager: GlucoseAlertManager
     private var provider: GlucoseProvider? = null
     private val accumulatedHistory = mutableListOf<GlucoseHistoryPoint>()
+    private var lastGlucose: Double? = null
+    private var lastTrend: String = ""
+    private var lastDelta: Double? = null
+    private var lastUnit: String = "mmol/L"
+    private var lastBattery: Double? = null
+    private var lastTimestamp: Long = 0L
 
     private val messageListener = MessageClient.OnMessageReceivedListener { messageEvent ->
         if (messageEvent.path == "/request_glucose") {
@@ -71,20 +77,29 @@ class GlucosePollingService : android.app.Service() {
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
 
-        val notification = Notification.Builder(this, channelId)
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText(getString(R.string.notification_monitoring_glucose))
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentIntent(
-                PendingIntent.getActivity(
-                    this, 0,
-                    Intent(this, MainActivity::class.java),
-                    PendingIntent.FLAG_IMMUTABLE
-                )
-            )
-            .build()
-
+        val notification = GlucoseNotificationBuilder.buildDefault(this, channelId)
         startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+    }
+
+    private fun updateNotification() {
+        val glucose = lastGlucose ?: return
+        try {
+            val notification = GlucoseNotificationBuilder.build(
+                context = this,
+                channelId = "medtrum_glucose_polling",
+                glucose = glucose,
+                trend = lastTrend,
+                delta = lastDelta,
+                unit = lastUnit,
+                batteryPercent = lastBattery,
+                timestamp = lastTimestamp,
+                showGlucoseIcon = true
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.notify(1, notification)
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) Log.e(TAG, "Notification update failed: ${e.message}")
+        }
     }
 
     private fun startPolling() {
@@ -141,7 +156,15 @@ class GlucosePollingService : android.app.Service() {
                     }
                     val trendSymbol = trend.symbol
 
+                    lastGlucose = glucose
+                    lastTrend = trendSymbol
+                    lastDelta = computedDelta
+                    lastUnit = snapshot.unit
+                    lastBattery = snapshot.batteryPercent
+                    lastTimestamp = timestamp
+
                     syncToWatch(glucose, timestamp, trendSymbol, computedDelta, snapshot.unit, snapshot)
+                    updateNotification()
 
                     val alertsEnabled = try { settingsStore.getAlertsEnabled() } catch (_: Exception) { true }
                     val high = try { settingsStore.getHighThresholdMmol() } catch (_: Exception) { 10.0 }

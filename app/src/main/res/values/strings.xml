@@ -81,6 +81,7 @@
     <string name="notification_channel_monitoring">Glucose Monitoring</string>
     <string name="notification_channel_monitoring_desc">Keeping glucose data in sync with your watch</string>
     <string name="notification_monitoring_glucose">Monitoring glucose…</string>
+    <string name="notification_battery_format">Battery %d%%</string>
 
     <string name="alert_high_title">Glucose is high</string>
     <string name="alert_low_title">Glucose is low</string>
