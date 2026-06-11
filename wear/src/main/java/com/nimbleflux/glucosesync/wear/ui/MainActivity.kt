@@ -34,6 +34,7 @@ import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TitleCard
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.Wearable
+import com.nimbleflux.glucosesync.wear.BuildConfig
 import com.nimbleflux.glucosesync.wear.R
 import com.nimbleflux.glucosesync.wear.repository.GlucoseRepository
 import com.nimbleflux.glucosesync.wear.repository.WatchGlucoseState
@@ -50,6 +51,15 @@ class MainActivity : ComponentActivity() {
             val state by repo.state.collectAsState(initial = WatchGlucoseState())
 
             RequestFreshDataOnResume()
+
+            if (BuildConfig.DEBUG && state.glucose <= 0.0) {
+                LaunchedEffect(Unit) {
+                    kotlinx.coroutines.delay(10_000)
+                    if (repo.state.value.glucose <= 0.0) {
+                        repo.injectDemoData()
+                    }
+                }
+            }
 
             if (state.glucose > 0.0 && !state.isStale) {
                 GlucoseDashboard(state)

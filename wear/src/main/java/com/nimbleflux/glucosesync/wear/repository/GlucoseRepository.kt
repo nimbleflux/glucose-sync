@@ -113,6 +113,39 @@ class GlucoseRepository private constructor(context: Context) {
     fun getUnit(): String = _state.value.unit
     fun isStale(): Boolean = _state.value.isStale
 
+    fun injectDemoData() {
+        val now = System.currentTimeMillis() / 1000
+        val history = mutableListOf<Pair<Long, Double>>()
+        val pattern = listOf(
+            5.2, 5.3, 5.1, 4.9, 4.7, 4.5, 4.4, 4.5, 4.7, 4.9,
+            5.1, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.7, 5.6, 5.5,
+            5.5, 5.6, 5.6, 5.6
+        )
+        for (i in pattern.indices) {
+            val ts = now - (pattern.size - 1 - i) * 300L
+            history.add(ts to pattern[i])
+        }
+
+        _state.value = WatchGlucoseState(
+            glucose = 5.6,
+            unit = "mmol/L",
+            trend = "\u2192",
+            timestamp = now,
+            history = history,
+            iob = 1.2,
+            delta = 0.3,
+            batteryPercent = 0.91,
+            basalRate = 0.4,
+            lastBolus = 3.0,
+            lastBolusTime = now - 3600,
+            remainingDose = 122.0,
+            highThreshold = 10.0,
+            lowThreshold = 3.9,
+            timeInRange = 0.85,
+            averageGlucose = 5.8
+        )
+    }
+
     private fun loadFromPrefs(): WatchGlucoseState {
         return WatchGlucoseState(
             glucose = prefs.getFloat(KEY_GLUCOSE, 0f).toDouble(),
