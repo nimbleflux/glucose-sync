@@ -76,7 +76,8 @@ class GlucoseRepository private constructor(context: Context) {
         highThreshold: Double? = null,
         lowThreshold: Double? = null,
         timeInRange: Double? = null,
-        averageGlucose: Double? = null
+        averageGlucose: Double? = null,
+        history: List<Pair<Long, Double>>? = null
     ) {
         saving = true
         prefs.edit()
@@ -96,10 +97,15 @@ class GlucoseRepository private constructor(context: Context) {
             .apply { timeInRange?.let { putFloat(KEY_TIME_IN_RANGE, it.toFloat()) } }
             .apply { averageGlucose?.let { putFloat(KEY_AVERAGE_GLUCOSE, it.toFloat()) } }
             .apply()
-        val history = _state.value.history.toMutableList()
-        history.add(timestamp to glucose)
+        val updatedHistory = if (history != null) {
+            history.trimTo2h()
+        } else {
+            val existing = _state.value.history.toMutableList()
+            existing.add(timestamp to glucose)
+            existing.trimTo2h()
+        }
         _state.value = WatchGlucoseState(
-            glucose, unit, trend, timestamp, history.trimTo2h(),
+            glucose, unit, trend, timestamp, updatedHistory,
             iob, delta, batteryPercent, basalRate, lastBolus, lastBolusTime, remainingDose,
             highThreshold ?: _state.value.highThreshold,
             lowThreshold ?: _state.value.lowThreshold,

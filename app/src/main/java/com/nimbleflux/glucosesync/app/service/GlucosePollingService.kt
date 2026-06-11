@@ -167,6 +167,12 @@ class GlucosePollingService : android.app.Service() {
                 snapshot.lowThreshold?.let { dataMap.putDouble("lowThreshold", it) }
                 snapshot.timeInRange?.let { dataMap.putDouble("timeInRange", it) }
                 snapshot.averageGlucose?.let { dataMap.putDouble("averageGlucose", it) }
+                if (snapshot.history.isNotEmpty()) {
+                    val cutoff = System.currentTimeMillis() / 1000 - 7200
+                    val recent = snapshot.history.filter { it.timestamp >= cutoff }
+                    dataMap.putLongArray("history_ts", recent.map { it.timestamp }.toLongArray())
+                    dataMap.putFloatArray("history_gl", recent.map { it.glucoseMmol.toFloat() }.toFloatArray())
+                }
             }
             dataClient.putDataItem(request.asPutDataRequest().setUrgent())
             if (BuildConfig.DEBUG) Log.d(TAG, "Synced to watch: $glucose $unit")

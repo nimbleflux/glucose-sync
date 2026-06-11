@@ -23,6 +23,12 @@ class GlucoseDataReceiver : WearableListenerService() {
 
                 Log.d(TAG, "Received glucose: $glucose $unit at $timestamp")
 
+                val historyTs = map.getLongArray("history_ts")
+                val historyGl = map.getFloatArray("history_gl")
+                val history: List<Pair<Long, Double>>? = if (historyTs != null && historyGl != null && historyTs.size == historyGl.size) {
+                    historyTs.mapIndexed { i, ts -> ts to historyGl[i].toDouble() }
+                } else null
+
                 repo.saveGlucose(
                     glucose = glucose,
                     timestamp = timestamp,
@@ -38,7 +44,8 @@ class GlucoseDataReceiver : WearableListenerService() {
                     highThreshold = if (map.getDouble("highThreshold", -1.0) >= 0) map.getDouble("highThreshold") else null,
                     lowThreshold = if (map.getDouble("lowThreshold", -1.0) >= 0) map.getDouble("lowThreshold") else null,
                     timeInRange = if (map.getDouble("timeInRange", -1.0) >= 0) map.getDouble("timeInRange") else null,
-                    averageGlucose = if (map.getDouble("averageGlucose", -1.0) >= 0) map.getDouble("averageGlucose") else null
+                    averageGlucose = if (map.getDouble("averageGlucose", -1.0) >= 0) map.getDouble("averageGlucose") else null,
+                    history = history
                 )
             }
         }
