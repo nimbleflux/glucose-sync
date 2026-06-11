@@ -90,32 +90,34 @@ object GlucoseNotificationBuilder {
 
     private fun createGlucoseIcon(context: Context, glucoseText: String, trend: String): Icon {
         val density = context.resources.displayMetrics.density
-        val size = (24 * density).toInt().coerceAtLeast(48)
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val height = (24 * density).toInt().coerceAtLeast(48)
+        val width = height * 2
+
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
-        }
-
-        val radius = size / 2f
+        val cornerRadius = height / 2f
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         bgPaint.color = Color.WHITE
         bgPaint.style = Paint.Style.FILL
-        canvas.drawCircle(radius, radius, radius, bgPaint)
+        canvas.drawRoundRect(0f, 0f, width.toFloat(), height.toFloat(), cornerRadius, cornerRadius, bgPaint)
 
         val arrow = trendArrowChar(trend)
-        val combined = if (arrow != null) "$glucoseText$arrow" else glucoseText
+        val label = glucoseText.replace(".0", "").replace(".", "")
+        val combined = if (arrow != null) "$label$arrow" else label
 
-        clearPaint.typeface = Typeface.DEFAULT_BOLD
-        clearPaint.textSize = if (combined.length > 4) size * 0.24f else size * 0.32f
-        clearPaint.textAlign = Paint.Align.CENTER
-        clearPaint.style = Paint.Style.FILL
+        val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+            typeface = Typeface.DEFAULT_BOLD
+            textSize = height * 0.55f
+            textAlign = Paint.Align.CENTER
+            style = Paint.Style.FILL
+        }
 
         val textBounds = Rect()
         clearPaint.getTextBounds(combined, 0, combined.length, textBounds)
-        val textY = radius + textBounds.height() / 2f
-        canvas.drawText(combined, radius, textY, clearPaint)
+        val textY = height / 2f + textBounds.height() / 2f
+        canvas.drawText(combined, width / 2f, textY, clearPaint)
 
         return Icon.createWithBitmap(bitmap)
     }
