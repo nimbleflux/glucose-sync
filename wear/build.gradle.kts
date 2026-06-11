@@ -60,11 +60,11 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.wear.compose:compose-material:$wearComposeVersion")
     implementation("androidx.wear.compose:compose-foundation:$wearComposeVersion")
-    implementation("androidx.activity:activity-compose:1.10.1")
+    implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:$lifecycleVersion")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:$lifecycleVersion")
 
     implementation("com.google.android.gms:play-services-wearable:$wearableVersion")
-    implementation("androidx.wear.watchface:watchface-complications-data:1.2.1")
-    implementation("androidx.wear.watchface:watchface-complications-data-source:1.2.1")
+    implementation("androidx.wear.watchface:watchface-complications-data:1.3.0")
+    implementation("androidx.wear.watchface:watchface-complications-data-source:1.3.0")
 }
