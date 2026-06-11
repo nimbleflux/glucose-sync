@@ -71,5 +71,5 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
-    implementation("com.google.android.gms:play-services-wearable:19.0.0")
+    implementation("com.google.android.gms:play-services-wearable:20.0.1")
 }
