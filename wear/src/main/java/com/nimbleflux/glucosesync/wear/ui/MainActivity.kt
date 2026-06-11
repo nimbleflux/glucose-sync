@@ -1,11 +1,12 @@
 package com.nimbleflux.glucosesync.wear.ui
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.animate
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,7 +15,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -26,12 +29,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
-import androidx.wear.compose.material.Chip
-import androidx.wear.compose.material.ChipDefaults
-import androidx.wear.compose.material.CircularProgressIndicator
-import androidx.wear.compose.material.MaterialTheme
-import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TitleCard
+import androidx.wear.compose.material.*
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.Wearable
 import com.nimbleflux.glucosesync.wear.BuildConfig
@@ -62,9 +60,9 @@ class MainActivity : ComponentActivity() {
             }
 
             if (state.glucose > 0.0 && !state.isStale) {
-                GlucoseDashboard(state)
+                GlucoseDashboard(state, ::requestFreshData)
             } else if (state.glucose > 0.0 && state.isStale) {
-                StaleGlucoseScreen(state)
+                StaleGlucoseScreen(state, ::requestFreshData)
             } else {
                 WaitingForDataScreen()
             }
@@ -100,52 +98,95 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun GlucoseDashboard(state: WatchGlucoseState) {
+private fun GlucoseDashboard(state: WatchGlucoseState, onRefresh: () -> Unit) {
     val listState = rememberScalingLazyListState()
+    var refreshing by remember { mutableStateOf(false) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
 
-    ScalingLazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        item { GlucoseHero(state) }
+    Box(modifier = Modifier.fillMaxSize()) {
+        ScalingLazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onDragEnd = {
+                            if (dragOffset > 80f && !refreshing) {
+                                refreshing = true
+                                onRefresh()
+                            }
+                            dragOffset = 0f
+                        },
+                        onDragCancel = { dragOffset = 0f }
+                    ) { _, dragAmount ->
+                        if (dragAmount > 0 && listState.canScrollBackward.not()) {
+                            dragOffset = (dragOffset + dragAmount).coerceAtMost(150f)
+                        }
+                    }
+                }
+                .graphicsLayer { translationY = dragOffset * 0.3f },
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            item { GlucoseHero(state) }
 
-        if (state.history.size >= 4) {
+            if (state.history.size >= 4) {
+                item {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    WatchSparkline(
+                        history = state.history,
+                        highThreshold = state.highThreshold,
+                        lowThreshold = state.lowThreshold,
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .height(60.dp)
+                    )
+                }
+            }
+
             item {
                 Spacer(modifier = Modifier.height(2.dp))
-                WatchSparkline(
-                    history = state.history,
-                    highThreshold = state.highThreshold,
-                    lowThreshold = state.lowThreshold,
-                    modifier = Modifier
-                        .fillMaxWidth(0.92f)
-                        .height(60.dp)
+                StatsRow(state)
+            }
+
+            if (state.iob != null || state.basalRate != null || state.lastBolus != null || state.remainingDose != null) {
+                item {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    PumpCard(state)
+                }
+            }
+
+            if (state.batteryPercent != null) {
+                item {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    BatteryChip(state)
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(2.dp))
+                LastUpdatedText(state.timestamp)
+            }
+        }
+
+        if (dragOffset > 40f || refreshing) {
+            LaunchedEffect(refreshing) {
+                if (refreshing) {
+                    kotlinx.coroutines.delay(2000)
+                    refreshing = false
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp,
+                    indicatorColor = MaterialTheme.colors.primary
                 )
             }
-        }
-
-        item {
-            Spacer(modifier = Modifier.height(2.dp))
-            StatsRow(state)
-        }
-
-        if (state.iob != null || state.basalRate != null || state.lastBolus != null || state.remainingDose != null) {
-            item {
-                Spacer(modifier = Modifier.height(4.dp))
-                PumpCard(state)
-            }
-        }
-
-        if (state.batteryPercent != null) {
-            item {
-                Spacer(modifier = Modifier.height(4.dp))
-                BatteryChip(state)
-            }
-        }
-
-        item {
-            Spacer(modifier = Modifier.height(2.dp))
-            LastUpdatedText(state.timestamp)
         }
     }
 }
@@ -340,24 +381,52 @@ private fun LastUpdatedText(timestamp: Long) {
 }
 
 @Composable
-private fun StaleGlucoseScreen(state: WatchGlucoseState) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+private fun StaleGlucoseScreen(state: WatchGlucoseState, onRefresh: () -> Unit) {
+    var refreshing by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragEnd = {
+                        if (refreshing.not()) {
+                            refreshing = true
+                            onRefresh()
+                        }
+                    },
+                    onDragCancel = { }
+                ) { _, _ -> }
+            },
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = String.format("%.1f", state.glucose),
-            fontSize = 28.sp,
-            color = MaterialTheme.colors.onSurfaceVariant
-        )
-        Text(
-            text = stringResource(R.string.glucose_stale),
-            fontSize = 11.sp,
-            color = MaterialTheme.colors.error
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        LastUpdatedText(state.timestamp)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (refreshing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp).padding(bottom = 8.dp),
+                    strokeWidth = 2.dp,
+                    indicatorColor = MaterialTheme.colors.primary
+                )
+                LaunchedEffect(refreshing) {
+                    kotlinx.coroutines.delay(2000)
+                    refreshing = false
+                }
+            }
+            Text(
+                text = String.format("%.1f", state.glucose),
+                fontSize = 28.sp,
+                color = MaterialTheme.colors.onSurfaceVariant
+            )
+            Text(
+                text = stringResource(R.string.glucose_stale),
+                fontSize = 11.sp,
+                color = MaterialTheme.colors.error
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LastUpdatedText(state.timestamp)
+        }
     }
 }
 
