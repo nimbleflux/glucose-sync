@@ -7,6 +7,7 @@ import com.nimbleflux.glucosesync.app.BuildConfig
 import com.nimbleflux.glucosesync.app.data.SettingsStore
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
 import com.nimbleflux.glucosesync.shared.domain.DemoData
+import com.nimbleflux.glucosesync.shared.domain.AlertEntry
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
 import com.nimbleflux.glucosesync.shared.domain.TrendArrow
@@ -65,7 +66,8 @@ data class MainUiState(
     val lastBolus: Double? = null,
     val lastBolusTime: Long? = null,
     val remainingDose: Double? = null,
-    val deltaMinutes: Int = 5
+    val deltaMinutes: Int = 5,
+    val alerts: List<AlertEntry> = emptyList()
 ) {
     val glucoseDisplay: Double?
         get() = glucose?.let { if (glucoseUnit == "mg/dL") it * 18 else it }
@@ -105,9 +107,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val refreshMutex = Mutex()
     private var demoPollingJob: kotlinx.coroutines.Job? = null
+    private var autoRefreshJob: kotlinx.coroutines.Job? = null
 
     init {
         checkWearCompanion()
+        viewModelScope.launch {
+            _uiState.collect { state ->
+                if (state.isLoggedIn && !state.isDemo && autoRefreshJob?.isActive != true) {
+                    startAutoRefresh()
+                }
+            }
+        }
         viewModelScope.launch {
             val unit = settingsStore.getUnit()
             val alerts = settingsStore.getAlertsEnabled()
@@ -295,8 +305,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update {
                 it.copy(isLoggedIn = true, isLoading = false, showPatientPicker = false, realname = displayName)
             }
-            refreshGlucose()
-        }
+                    refreshGlucose()
+                    startAutoRefresh()
+                }
     }
 
     fun loginDemo() {
@@ -319,7 +330,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val currentHistory = _uiState.value.history.toMutableList()
         val snapshot = DemoData.snapshot(currentHistory)
         currentHistory.add(GlucoseHistoryPoint(snapshot.timestamp, snapshot.glucose ?: 5.6))
-        val trimmed = currentHistory.trimTo12h()
+        val trimmed = currentHistory.trimTo24h()
 
         val unit = _uiState.value.glucoseUnit
         _uiState.update {
@@ -335,6 +346,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         snapshot.glucose?.let { _ ->
             syncToWatch(snapshot)
+        }
+    }
+
+    private fun startAutoRefresh() {
+        autoRefreshJob?.cancel()
+        autoRefreshJob = viewModelScope.launch {
+            while (true) {
+                delay(60_000)
+                if (_uiState.value.isLoggedIn && !_uiState.value.isDemo) {
+                    refreshGlucose()
+                }
+            }
         }
     }
 
@@ -360,14 +383,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 p.fetchGlucose()
                     .onSuccess { snapshot ->
                         val history = if (snapshot.history.isNotEmpty()) {
-                            snapshot.history.trimTo12h()
+                            snapshot.history.trimTo24h()
                         } else {
                             val currentHistory = _uiState.value.history.toMutableList()
                             val g = snapshot.glucose
                             if (g != null && snapshot.sensorActive) {
                                 currentHistory.add(GlucoseHistoryPoint(snapshot.timestamp, g))
                             }
-                            currentHistory.trimTo12h()
+                            currentHistory.trimTo24h()
                         }
 
                         val trend = if (snapshot.trend == TrendArrow.UNKNOWN) {
@@ -393,7 +416,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 basalRate = snapshot.basalRate,
                                 lastBolus = snapshot.lastBolus,
                                 lastBolusTime = snapshot.lastBolusTime,
-                                remainingDose = snapshot.remainingDose
+                                remainingDose = snapshot.remainingDose,
+                                alerts = snapshot.alerts
                             )
                         }
                         snapshot.glucose?.let { _ ->
@@ -500,8 +524,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return TrendArrow.fromRate(ratePerMinute)
     }
 
-    private fun List<GlucoseHistoryPoint>.trimTo12h(): List<GlucoseHistoryPoint> {
-        val cutoff = System.currentTimeMillis() / 1000 - 43200
+    private fun List<GlucoseHistoryPoint>.trimTo24h(): List<GlucoseHistoryPoint> {
+        val cutoff = System.currentTimeMillis() / 1000 - 86400
         return this.filter { it.timestamp >= cutoff }
     }
 
@@ -531,6 +555,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() {
         demoPollingJob?.cancel()
+        autoRefreshJob?.cancel()
         provider?.logout()
         viewModelScope.launch {
             credentialStore.clear()
@@ -586,6 +611,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 val hasCapability = capabilityInfo.nodes.isNotEmpty()
                 _uiState.update { it.copy(watchPaired = true, wearAppInstalled = hasCapability) }
+
+                Wearable.getMessageClient(app).addListener { messageEvent ->
+                    if (messageEvent.path == "/request_glucose") {
+                        refreshGlucose()
+                    }
+                }
             } catch (_: Exception) {
                 _uiState.update { it.copy(watchPaired = false, wearAppInstalled = true) }
             }

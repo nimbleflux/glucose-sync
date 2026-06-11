@@ -5,6 +5,7 @@ import android.util.Base64
 import com.nimbleflux.glucosesync.shared.api.model.*
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
 import com.nimbleflux.glucosesync.shared.data.Credentials
+import com.nimbleflux.glucosesync.shared.domain.AlertEntry
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
 import com.nimbleflux.glucosesync.shared.domain.TrendArrow
@@ -24,6 +25,8 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import okhttp3.MediaType.Companion.toMediaType
+import java.time.LocalDate
+import java.time.ZoneId
 import java.net.CookieManager
 import java.net.CookiePolicy
 import okhttp3.JavaNetCookieJar
@@ -155,6 +158,8 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
                     history.map { it.glucoseMmol }.average()
                 } else null
 
+                val alerts = parseAlerts(chart.sensor_alarm, chart.pump_alarm)
+
                 Result.success(
                     GlucoseSnapshot(
                         glucose = glucose,
@@ -173,7 +178,8 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
                         highThreshold = chart.blos_high,
                         lowThreshold = chart.blos_low,
                         timeInRange = timeInRange,
-                        averageGlucose = averageGlucose
+                        averageGlucose = averageGlucose,
+                        alerts = alerts
                     )
                 )
             }
@@ -215,6 +221,26 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
         return TrendArrow.fromRate(ratePerMinute)
     }
 
+    private fun parseAlerts(
+        sensorAlarm: List<kotlinx.serialization.json.JsonElement>,
+        pumpAlarm: List<kotlinx.serialization.json.JsonElement>
+    ): List<AlertEntry> {
+        val entries = mutableListOf<AlertEntry>()
+        for (element in sensorAlarm) {
+            val arr = element as? JsonArray ?: continue
+            val ts = (arr.getOrNull(0) as? JsonPrimitive)?.doubleOrNull?.toLong() ?: continue
+            val msg = (arr.getOrNull(1) as? JsonPrimitive)?.content ?: continue
+            entries.add(AlertEntry(ts, msg, "sensor"))
+        }
+        for (element in pumpAlarm) {
+            val arr = element as? JsonArray ?: continue
+            val ts = (arr.getOrNull(0) as? JsonPrimitive)?.doubleOrNull?.toLong() ?: continue
+            val msg = (arr.getOrNull(1) as? JsonPrimitive)?.content ?: continue
+            entries.add(AlertEntry(ts, msg, "pump"))
+        }
+        return entries.sortedByDescending { it.timestamp }
+    }
+
     private fun buildApi(baseUrl: String): MedtrumApi {
         val client = OkHttpClient.Builder()
             .cookieJar(JavaNetCookieJar(cookieManager))
@@ -235,8 +261,8 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
     }
 
     private fun buildTodayParam(): String {
-        val now = System.currentTimeMillis() / 1000
-        val startOfDay = now - (now % 86400)
+        val zone = ZoneId.systemDefault()
+        val startOfDay = LocalDate.now(zone).atStartOfDay(zone).toEpochSecond()
         val endOfDay = startOfDay + 86399
         val paramJson = """{"ts":[$startOfDay,$endOfDay],"tz":0}"""
         return Base64.encodeToString(paramJson.toByteArray(), Base64.NO_WRAP)

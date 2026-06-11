@@ -1,13 +1,13 @@
 package com.nimbleflux.glucosesync.shared.domain
 
 enum class TrendArrow(val symbol: String) {
-    RISING_RAPIDLY("\u2B06\uFE0F"),
-    RISING("\u2197\uFE0F"),
+    RISING_RAPIDLY("\u2B06"),
+    RISING("\u2191"),
     RISING_SLOWLY("\u2197"),
     STABLE("\u2192"),
     FALLING_SLOWLY("\u2198"),
-    FALLING("\u2198\uFE0F"),
-    FALLING_RAPIDLY("\u2B07\uFE0F"),
+    FALLING("\u2193"),
+    FALLING_RAPIDLY("\u2B07"),
     UNKNOWN("?");
 
     companion object {

@@ -183,6 +183,6 @@ class GlucosePollingService : android.app.Service() {
 
     companion object {
         private const val TAG = "GlucosePolling"
-        private const val POLLING_INTERVAL_MS = 60_000L
+        private const val POLLING_INTERVAL_MS = 300_000L
     }
 }

@@ -1,5 +1,11 @@
 package com.nimbleflux.glucosesync.shared.domain
 
+data class AlertEntry(
+    val timestamp: Long,
+    val message: String,
+    val type: String
+)
+
 data class GlucoseSnapshot(
     val glucose: Double?,
     val timestamp: Long,
@@ -17,7 +23,8 @@ data class GlucoseSnapshot(
     val highThreshold: Double? = null,
     val lowThreshold: Double? = null,
     val timeInRange: Double? = null,
-    val averageGlucose: Double? = null
+    val averageGlucose: Double? = null,
+    val alerts: List<AlertEntry> = emptyList()
 ) {
     val isStale: Boolean
         get() = if (timestamp == 0L) true else System.currentTimeMillis() / 1000 - timestamp > 600

@@ -16,4 +16,6 @@
     <string name="complication_content_description_delta">Glucose change %1$s</string>
     <string name="complication_title_battery">Sensor</string>
     <string name="complication_content_description_battery">Sensor battery %1$s%%</string>
+    <string name="complication_title_glucose_delta">Glucose + Delta</string>
+    <string name="complication_content_description_glucose_delta">Glucose %1$s %2$s%3$s</string>
 </resources>

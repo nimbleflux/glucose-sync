@@ -1,6 +1,7 @@
 package com.nimbleflux.glucosesync.wear.ui
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
@@ -14,17 +15,25 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.material.Chip
+import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
+import androidx.wear.compose.material.TitleCard
+import com.google.android.gms.wearable.MessageClient
+import com.google.android.gms.wearable.Wearable
 import com.nimbleflux.glucosesync.wear.R
 import com.nimbleflux.glucosesync.wear.repository.GlucoseRepository
 import com.nimbleflux.glucosesync.wear.repository.WatchGlucoseState
@@ -40,6 +49,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val state by repo.state.collectAsState(initial = WatchGlucoseState())
 
+            RequestFreshDataOnResume()
+
             if (state.glucose > 0.0 && !state.isStale) {
                 GlucoseDashboard(state)
             } else if (state.glucose > 0.0 && state.isStale) {
@@ -48,6 +59,33 @@ class MainActivity : ComponentActivity() {
                 WaitingForDataScreen()
             }
         }
+    }
+
+    @Composable
+    private fun RequestFreshDataOnResume() {
+        val lifecycleOwner = LocalLifecycleOwner.current
+        DisposableEffect(lifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    requestFreshData()
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+            }
+        }
+    }
+
+    private fun requestFreshData() {
+        try {
+            Wearable.getNodeClient(this).connectedNodes.addOnSuccessListener { nodes ->
+                val messageClient = Wearable.getMessageClient(this)
+                for (node in nodes) {
+                    messageClient.sendMessage("/request_glucose", node.id, ByteArray(0))
+                }
+            }
+        } catch (_: Exception) { }
     }
 }
 
@@ -58,48 +96,45 @@ private fun GlucoseDashboard(state: WatchGlucoseState) {
     ScalingLazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        item {
-            GlucoseHero(state)
-        }
+        item { GlucoseHero(state) }
 
         if (state.history.size >= 4) {
             item {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 WatchSparkline(
                     history = state.history,
                     highThreshold = state.highThreshold,
                     lowThreshold = state.lowThreshold,
                     modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .height(64.dp)
+                        .fillMaxWidth(0.92f)
+                        .height(60.dp)
                 )
             }
         }
 
         item {
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             StatsRow(state)
         }
 
-        if (state.iob != null || state.basalRate != null || state.lastBolus != null) {
+        if (state.iob != null || state.basalRate != null || state.lastBolus != null || state.remainingDose != null) {
             item {
-                Spacer(modifier = Modifier.height(8.dp))
-                PumpInfoSection(state)
+                Spacer(modifier = Modifier.height(4.dp))
+                PumpCard(state)
             }
         }
 
         if (state.batteryPercent != null) {
             item {
-                Spacer(modifier = Modifier.height(6.dp))
-                SensorInfoSection(state)
+                Spacer(modifier = Modifier.height(4.dp))
+                BatteryChip(state)
             }
         }
 
         item {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             LastUpdatedText(state.timestamp)
         }
     }
@@ -221,82 +256,59 @@ private fun StatChip(label: String, value: String, color: Color) {
 }
 
 @Composable
-private fun PumpInfoSection(state: WatchGlucoseState) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
+private fun PumpCard(state: WatchGlucoseState) {
+    val parts = mutableListOf<String>()
+    state.iob?.let { parts.add("IOB ${String.format("%.1f", it)}U") }
+    state.basalRate?.let { parts.add("Basal ${String.format("%.1f", it)}U/h") }
+    state.lastBolus?.let { parts.add("Bolus ${String.format("%.1f", it)}U") }
+    state.remainingDose?.let { parts.add("Res ${String.format("%.0f", it)}U") }
+
+    TitleCard(
+        onClick = { },
+        title = {
+            Text(
+                text = "Pump",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colors.primary
+            )
+        },
+        modifier = Modifier.fillMaxWidth(0.92f)
     ) {
         Text(
-            text = "Pump",
-            fontSize = 10.sp,
-            fontWeight = FontWeight.SemiBold,
+            text = parts.joinToString("  ·  "),
+            fontSize = 11.sp,
             color = MaterialTheme.colors.onSurfaceVariant
         )
-        Spacer(modifier = Modifier.height(4.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            state.iob?.let { iob ->
-                InfoItem(label = "IOB", value = String.format("%.1f U", iob))
-            }
-            state.basalRate?.let { rate ->
-                InfoItem(label = "Basal", value = String.format("%.1f U/h", rate))
-            }
-            state.lastBolus?.let { bolus ->
-                InfoItem(label = "Bolus", value = String.format("%.1f U", bolus))
-            }
-        }
-        state.remainingDose?.let { dose ->
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = String.format("%.0f U remaining", dose),
-                fontSize = 10.sp,
-                color = MaterialTheme.colors.onSurfaceVariant.copy(alpha = 0.7f)
-            )
-        }
     }
 }
 
 @Composable
-private fun SensorInfoSection(state: WatchGlucoseState) {
+private fun BatteryChip(state: WatchGlucoseState) {
     state.batteryPercent?.let { battery ->
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "Battery",
-                fontSize = 10.sp,
-                color = MaterialTheme.colors.onSurfaceVariant.copy(alpha = 0.7f)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = String.format("%.0f%%", battery * 100),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = when {
-                    battery > 0.5 -> MaterialTheme.colors.primary
-                    battery > 0.2 -> Color(0xFFFF9800)
-                    else -> MaterialTheme.colors.error
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun InfoItem(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colors.onSurface
-        )
-        Text(
-            text = label,
-            fontSize = 9.sp,
-            color = MaterialTheme.colors.onSurfaceVariant.copy(alpha = 0.6f)
+        Chip(
+            onClick = { },
+            label = {
+                Text(
+                    text = "Sensor Battery",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colors.onSurfaceVariant
+                )
+            },
+            secondaryLabel = {
+                Text(
+                    text = String.format("%.0f%%", battery * 100),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = when {
+                        battery > 0.5 -> MaterialTheme.colors.primary
+                        battery > 0.2 -> Color(0xFFFF9800)
+                        else -> MaterialTheme.colors.error
+                    }
+                )
+            },
+            modifier = Modifier.fillMaxWidth(0.92f),
+            colors = ChipDefaults.secondaryChipColors()
         )
     }
 }

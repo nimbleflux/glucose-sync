@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nimbleflux.glucosesync.app.R
+import com.nimbleflux.glucosesync.shared.domain.AlertEntry
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import java.text.SimpleDateFormat
 import java.util.*
@@ -46,6 +47,7 @@ fun GlucoseScreen(
     lastBolus: Double?,
     lastBolusTime: Long?,
     remainingDose: Double?,
+    alerts: List<AlertEntry>,
     onRefresh: () -> Unit,
     onLogout: () -> Unit,
     onSettings: () -> Unit,
@@ -122,7 +124,7 @@ fun GlucoseScreen(
                 val displayGlucose = if (unit == "mg/dL") glucose * 18 else glucose
                 ActiveSection(displayGlucose, unit, trend, lastUpdate, history,
                     highThreshold, lowThreshold, timeInRange, averageGlucose,
-                    iob, delta, batteryPercent, basalRate, lastBolus, lastBolusTime, remainingDose)
+                    iob, delta, batteryPercent, basalRate, lastBolus, lastBolusTime, remainingDose, alerts)
             } else {
                 InactiveSection(error)
             }
@@ -185,7 +187,8 @@ private fun ActiveSection(
     basalRate: Double?,
     lastBolus: Double?,
     lastBolusTime: Long?,
-    remainingDose: Double?
+    remainingDose: Double?,
+    alerts: List<AlertEntry>
 ) {
     val inRange = glucose in lowThreshold..highThreshold
     val glucoseColor = when {
@@ -439,6 +442,47 @@ private fun ActiveSection(
                 modifier = Modifier.weight(1f),
                 highlight = batteryPercent > 0.25
             )
+        }
+    }
+
+    if (alerts.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(stringResource(R.string.alerts_recent_title), style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp))
+
+        alerts.take(5).forEach { alert ->
+            val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(alert.timestamp * 1000))
+            val icon = when (alert.type) {
+                "pump" -> Icons.Filled.Medication
+                else -> Icons.Filled.Warning
+            }
+            val alertColor = when {
+                alert.message.contains("Low", ignoreCase = true) -> MaterialTheme.colorScheme.error
+                alert.message.contains("High", ignoreCase = true) -> MaterialTheme.colorScheme.error
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            }
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                tonalElevation = 2.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp),
+                        tint = alertColor.copy(alpha = 0.6f))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(timeStr, style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(alert.message, style = MaterialTheme.typography.bodySmall,
+                        color = alertColor, modifier = Modifier.weight(1f))
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
         }
     }
 }

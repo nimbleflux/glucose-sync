@@ -36,10 +36,15 @@ class GlucoseRepository private constructor(context: Context) {
     private val _state = MutableStateFlow(loadFromPrefs())
     val state: StateFlow<WatchGlucoseState> = _state
 
+    @Volatile
+    private var saving = false
+
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
-        val saved = loadFromPrefs()
-        if (saved.glucose > 0.0) {
-            _state.value = saved
+        if (!saving) {
+            val saved = loadFromPrefs()
+            if (saved.glucose > 0.0) {
+                _state.value = saved
+            }
         }
     }
 
@@ -73,6 +78,7 @@ class GlucoseRepository private constructor(context: Context) {
         timeInRange: Double? = null,
         averageGlucose: Double? = null
     ) {
+        saving = true
         prefs.edit()
             .putFloat(KEY_GLUCOSE, glucose.toFloat())
             .putLong(KEY_TIMESTAMP, timestamp)
@@ -99,6 +105,7 @@ class GlucoseRepository private constructor(context: Context) {
             lowThreshold ?: _state.value.lowThreshold,
             timeInRange, averageGlucose
         )
+        saving = false
     }
 
     fun getGlucose(): Float = _state.value.glucose.toFloat()

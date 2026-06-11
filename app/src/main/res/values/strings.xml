@@ -108,4 +108,5 @@
     <string name="stat_last_bolus">Last bolus</string>
     <string name="stat_reservoir">Reservoir</string>
     <string name="stat_battery">Sensor battery</string>
+    <string name="alerts_recent_title">Recent alerts</string>
 </resources>

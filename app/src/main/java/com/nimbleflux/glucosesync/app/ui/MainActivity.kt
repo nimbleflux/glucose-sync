@@ -127,6 +127,7 @@ class MainActivity : ComponentActivity() {
                             lastBolus = state.lastBolus,
                             lastBolusTime = state.lastBolusTime,
                             remainingDose = state.remainingDose,
+                            alerts = state.alerts,
                             onRefresh = { viewModel.refreshGlucose() },
                             onLogout = {
                                 context.stopService(Intent(context, GlucosePollingService::class.java))

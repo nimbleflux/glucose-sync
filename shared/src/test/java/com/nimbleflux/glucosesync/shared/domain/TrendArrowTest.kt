@@ -91,13 +91,13 @@ class TrendArrowTest {
 
     @Test
     fun symbols_areCorrect() {
-        assertEquals("\u2B06\uFE0F", TrendArrow.RISING_RAPIDLY.symbol)
-        assertEquals("\u2197\uFE0F", TrendArrow.RISING.symbol)
+        assertEquals("\u2B06", TrendArrow.RISING_RAPIDLY.symbol)
+        assertEquals("\u2191", TrendArrow.RISING.symbol)
         assertEquals("\u2197", TrendArrow.RISING_SLOWLY.symbol)
         assertEquals("\u2192", TrendArrow.STABLE.symbol)
         assertEquals("\u2198", TrendArrow.FALLING_SLOWLY.symbol)
-        assertEquals("\u2198\uFE0F", TrendArrow.FALLING.symbol)
-        assertEquals("\u2B07\uFE0F", TrendArrow.FALLING_RAPIDLY.symbol)
+        assertEquals("\u2193", TrendArrow.FALLING.symbol)
+        assertEquals("\u2B07", TrendArrow.FALLING_RAPIDLY.symbol)
         assertEquals("?", TrendArrow.UNKNOWN.symbol)
     }
 }
