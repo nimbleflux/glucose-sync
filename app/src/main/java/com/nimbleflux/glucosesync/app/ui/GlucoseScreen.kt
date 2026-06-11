@@ -120,7 +120,18 @@ fun GlucoseScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (sensorActive && glucose != null) {
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(32.dp),
+                        strokeWidth = 3.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            } else if (sensorActive && glucose != null) {
                 val displayGlucose = if (unit == "mg/dL") glucose * 18 else glucose
                 ActiveSection(displayGlucose, unit, trend, lastUpdate, history,
                     highThreshold, lowThreshold, timeInRange, averageGlucose,

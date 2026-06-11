@@ -148,6 +148,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             val selectedProvider = credentialStore.getSelectedProvider()
+            _uiState.update { it.copy(restoringSession = false) }
             if (selectedProvider != null) {
                 _uiState.update { it.copy(selectedProviderId = selectedProvider) }
                 val p = ProviderRegistry.create(selectedProvider, application, BuildConfig.DEBUG)
@@ -155,7 +156,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val restored = p.restoreSession()
                 if (restored) {
                     val displayName = credentialStore.getSessionDisplayName() ?: ""
-                    _uiState.update { it.copy(isLoggedIn = true, realname = displayName) }
+                    _uiState.update { it.copy(isLoggedIn = true, isLoading = true, realname = displayName) }
 
                     if (p is MedtrumProvider && p.isCarer()) {
                         val savedPatientName = credentialStore.getMedtrumPatientName()
@@ -174,7 +175,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _uiState.update { it.copy(selectedProviderId = null) }
                 }
             }
-            _uiState.update { it.copy(restoringSession = false) }
         }
     }
 
