@@ -84,6 +84,7 @@ class GlucosePollingService : android.app.Service() {
     private fun updateNotification() {
         val glucose = lastGlucose ?: return
         try {
+            val showIcon = try { settingsStore.getStatusBarGlucose() } catch (_: Exception) { true }
             val notification = GlucoseNotificationBuilder.build(
                 context = this,
                 channelId = "medtrum_glucose_polling",
@@ -93,7 +94,7 @@ class GlucosePollingService : android.app.Service() {
                 unit = lastUnit,
                 batteryPercent = lastBattery,
                 timestamp = lastTimestamp,
-                showGlucoseIcon = true
+                showGlucoseIcon = showIcon
             )
             val manager = getSystemService(NotificationManager::class.java)
             manager.notify(1, notification)

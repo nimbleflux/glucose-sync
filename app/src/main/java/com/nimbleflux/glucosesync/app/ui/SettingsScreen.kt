@@ -46,6 +46,8 @@ fun SettingsScreen(
     onDeltaMinutesChange: (Int) -> Unit,
     themeMode: String,
     onThemeChange: (String) -> Unit,
+    statusBarGlucose: Boolean,
+    onStatusBarGlucoseChange: (Boolean) -> Unit,
     showWearInstall: Boolean,
     onInstallWearApp: () -> Unit,
     onLogout: () -> Unit,
@@ -405,6 +407,42 @@ fun SettingsScreen(
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         }
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Text(
+                stringResource(R.string.settings_notification),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.settings_notification_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_status_bar_glucose), style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium))
+                        Text(stringResource(R.string.settings_status_bar_glucose_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(
+                        checked = statusBarGlucose,
+                        onCheckedChange = onStatusBarGlucoseChange,
+                        colors = SwitchDefaults.colors(checkedTrackColor = MaterialTheme.colorScheme.primary)
+                    )
                 }
             }
 

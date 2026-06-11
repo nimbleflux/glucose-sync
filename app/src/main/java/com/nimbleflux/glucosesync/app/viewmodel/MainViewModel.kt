@@ -68,7 +68,8 @@ data class MainUiState(
     val remainingDose: Double? = null,
     val deltaMinutes: Int = 5,
     val alerts: List<AlertEntry> = emptyList(),
-    val restoringSession: Boolean = true
+    val restoringSession: Boolean = true,
+    val statusBarGlucose: Boolean = true
 ) {
     val glucoseDisplay: Double?
         get() = glucose?.let { if (glucoseUnit == "mg/dL") it * 18 else it }
@@ -131,6 +132,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val vibrateDuration = settingsStore.getAlertVibrateDuration()
             val themeMode = settingsStore.getThemeMode()
             val deltaMinutes = settingsStore.getDeltaMinutes()
+            val statusBarGlucose = settingsStore.getStatusBarGlucose()
             _uiState.update {
                 it.copy(
                     glucoseUnit = unit,
@@ -143,7 +145,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     alertVibrate = vibrate,
                     alertVibrateDuration = vibrateDuration,
                     themeMode = themeMode,
-                    deltaMinutes = deltaMinutes
+                    deltaMinutes = deltaMinutes,
+                    statusBarGlucose = statusBarGlucose
                 )
             }
 
@@ -559,6 +562,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (_uiState.value.isLoggedIn && !_uiState.value.isDemo) {
                 refreshGlucose()
             }
+        }
+    }
+
+    fun setStatusBarGlucose(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsStore.setStatusBarGlucose(enabled)
+            _uiState.update { it.copy(statusBarGlucose = enabled) }
         }
     }
 
