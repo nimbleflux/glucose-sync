@@ -102,7 +102,7 @@ class SettingsStore(context: Context) {
         prefs.edit().putInt("delta_minutes", minutes).apply()
     }
 
-    fun getStatusBarGlucose(): Boolean = prefs.getBoolean("status_bar_glucose", true)
+    fun getStatusBarGlucose(): Boolean = prefs.getBoolean("status_bar_glucose", false)
 
     suspend fun setStatusBarGlucose(enabled: Boolean) {
         prefs.edit().putBoolean("status_bar_glucose", enabled).apply()

@@ -65,7 +65,7 @@ object GlucoseNotificationBuilder {
             .setOngoing(true)
 
         if (showGlucoseIcon) {
-            builder.setSmallIcon(createGlucoseIcon(context, glucoseText))
+            builder.setSmallIcon(createGlucoseIcon(context, glucoseText, trend))
         } else {
             builder.setSmallIcon(R.drawable.ic_notification)
         }
@@ -88,31 +88,47 @@ object GlucoseNotificationBuilder {
             .build()
     }
 
-    private fun createGlucoseIcon(context: Context, glucoseText: String): Icon {
+    private fun createGlucoseIcon(context: Context, glucoseText: String, trend: String): Icon {
         val density = context.resources.displayMetrics.density
         val size = (24 * density).toInt().coerceAtLeast(48)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
+        val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+        }
+
         val radius = size / 2f
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        bgPaint.color = Color.WHITE
+        bgPaint.style = Paint.Style.FILL
+        canvas.drawCircle(radius, radius, radius, bgPaint)
 
-        paint.color = Color.WHITE
-        paint.style = Paint.Style.FILL
-        canvas.drawCircle(radius, radius, radius, paint)
+        val arrow = trendArrowChar(trend)
+        val combined = if (arrow != null) "$glucoseText$arrow" else glucoseText
 
-        paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
-        paint.style = Paint.Style.FILL
-        paint.typeface = Typeface.DEFAULT_BOLD
-        paint.textSize = if (glucoseText.length > 3) size * 0.28f else size * 0.38f
-        paint.textAlign = Paint.Align.CENTER
+        clearPaint.typeface = Typeface.DEFAULT_BOLD
+        clearPaint.textSize = if (combined.length > 4) size * 0.24f else size * 0.32f
+        clearPaint.textAlign = Paint.Align.CENTER
+        clearPaint.style = Paint.Style.FILL
 
         val textBounds = Rect()
-        paint.getTextBounds(glucoseText, 0, glucoseText.length, textBounds)
+        clearPaint.getTextBounds(combined, 0, combined.length, textBounds)
         val textY = radius + textBounds.height() / 2f
-        canvas.drawText(glucoseText, radius, textY, paint)
+        canvas.drawText(combined, radius, textY, clearPaint)
 
         return Icon.createWithBitmap(bitmap)
+    }
+
+    private fun trendArrowChar(trend: String): String? = when (trend) {
+        "↑↑" -> "⇈"
+        "↑" -> "↑"
+        "↗" -> "↗"
+        "→" -> "→"
+        "↘" -> "↘"
+        "↓" -> "↓"
+        "↓↓" -> "⇊"
+        else -> null
     }
 
     private fun formatTime(timestamp: Long): String {
