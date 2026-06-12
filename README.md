@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://play.google.com/store/apps/details?id=com.nimbleflux.glucosesync"><img src="https://img.shields.io/badge/Google%20Play-GlucoseSync-414141?logo=google-play&logoColor=white" alt="Google Play"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/platform-Android%20%7C%20Wear%20OS-green.svg" alt="Platform">
   <img src="https://img.shields.io/badge/kotlin-2.1-purple.svg" alt="Kotlin">
