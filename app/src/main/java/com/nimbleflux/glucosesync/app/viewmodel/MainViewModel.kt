@@ -13,6 +13,8 @@ import com.nimbleflux.glucosesync.shared.domain.GlucoseAggregator
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
 import com.nimbleflux.glucosesync.shared.provider.AuthType
+import com.nimbleflux.glucosesync.shared.provider.Connection
+import com.nimbleflux.glucosesync.shared.provider.GlucoseError
 import com.nimbleflux.glucosesync.shared.provider.GlucoseProvider
 import com.nimbleflux.glucosesync.shared.provider.ProviderCredentials
 import com.nimbleflux.glucosesync.shared.provider.ProviderRegistry
@@ -217,83 +219,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 credentialStore.saveSelectedProvider(p.id)
                 credentialStore.saveSessionDisplayName(session.displayName)
 
-                if (p is LibreLinkUpProvider) {
-                    val connections = p.getConnections()
-                    if (connections.isEmpty()) {
-                        _uiState.update { it.copy(isLoading = false, error = "No patients found") }
-                        return@launch
-                    }
-                    if (connections.size == 1) {
-                        p.selectPatient(connections[0].patientId)
-                        credentialStore.saveLibrePatient(connections[0].patientId)
+                val connections = fetchConnectionsForProvider(p)
+                when {
+                    connections == null -> {
                         _uiState.update {
                             it.copy(isLoggedIn = true, isLoading = false, realname = session.displayName)
                         }
                         refreshGlucose()
-                    } else {
-                        val unit = _uiState.value.glucoseUnit
-                        val patientInfos = connections.map { conn ->
-                            val glucoseMmol = conn.glucoseMeasurement?.Value
-                            PatientInfo(
-                                patientId = conn.patientId,
-                                firstName = conn.firstName,
-                                lastName = conn.lastName,
-                                sensorActive = conn.sensorActive,
-                                lastGlucose = if (unit == "mg/dL") {
-                                    glucoseMmol?.let { g -> "%.0f".format(g * 18) } ?: ""
-                                } else {
-                                    glucoseMmol?.let { g -> "%.1f".format(g) } ?: ""
-                                },
-                                displayUnit = unit
-                            )
-                        }
-                        _uiState.update {
-                            it.copy(isLoading = false, showPatientPicker = true, patients = patientInfos)
-                        }
                     }
-                } else if (p is MedtrumProvider && p.isCarer()) {
-                    val connections = p.getConnections()
-                    if (connections.isEmpty()) {
-                        _uiState.update { it.copy(isLoading = false, error = "No monitored patients found") }
-                        return@launch
+                    connections.isEmpty() -> {
+                        _uiState.update { it.copy(isLoading = false, error = "No patients found") }
                     }
-                    if (connections.size == 1) {
-                        val conn = connections[0]
-                        p.selectPatient(conn.uid, conn.displayName)
-                        _uiState.update {
-                            it.copy(isLoggedIn = true, isLoading = false, realname = conn.displayName)
-                        }
-                        refreshGlucose()
-                    } else {
-                        val unit = _uiState.value.glucoseUnit
-                        val patientInfos = connections.map { conn ->
-                            val glucoseMmol = conn.sensor_status.glucose
-                            PatientInfo(
-                                patientId = conn.uid.toString(),
-                                firstName = conn.displayName,
-                                lastName = "",
-                                sensorActive = glucoseMmol != null && glucoseMmol > 0,
-                                lastGlucose = if (unit == "mg/dL") {
-                                    glucoseMmol?.let { g -> "%.0f".format(g * 18) } ?: ""
-                                } else {
-                                    glucoseMmol?.let { g -> "%.1f".format(g) } ?: ""
-                                },
-                                displayUnit = unit
-                            )
-                        }
-                        _uiState.update {
-                            it.copy(isLoading = false, showPatientPicker = true, patients = patientInfos)
-                        }
-                    }
-                } else {
-                    _uiState.update {
-                        it.copy(isLoggedIn = true, isLoading = false, realname = session.displayName)
-                    }
-                    refreshGlucose()
+                    connections.size == 1 -> selectSinglePatient(session.displayName, connections[0])
+                    else -> showPatientPicker(connections)
                 }
+            } catch (e: GlucoseError) {
+                _uiState.update { it.copy(isLoading = false, error = e.message) }
             } catch (e: Exception) {
                 val msg = when {
-                    e.message?.contains("403") == true -> "Invalid credentials"
                     e.message?.contains("Unable to resolve") == true -> "No internet connection"
                     else -> e.message ?: "Something went wrong"
                 }
@@ -301,6 +244,60 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    private suspend fun fetchConnectionsForProvider(p: GlucoseProvider): List<Connection>? {
+        return when (p) {
+            is LibreLinkUpProvider -> p.getConnections()
+            is MedtrumProvider -> if (p.isCarer()) p.getConnections() else null
+            else -> null
+        }
+    }
+
+    private suspend fun selectSinglePatient(sessionDisplayName: String, conn: Connection) {
+        val p = provider ?: return
+        when (p) {
+            is LibreLinkUpProvider -> {
+                p.selectPatient(conn.id)
+                credentialStore.saveLibrePatient(conn.id)
+            }
+            is MedtrumProvider -> {
+                val uid = conn.id.toLongOrNull() ?: return
+                p.selectPatient(uid, conn.displayName)
+            }
+        }
+        _uiState.update {
+            it.copy(
+                isLoggedIn = true,
+                isLoading = false,
+                realname = conn.displayName.ifBlank { sessionDisplayName }
+            )
+        }
+        refreshGlucose()
+    }
+
+    private fun showPatientPicker(connections: List<Connection>) {
+        val unit = _uiState.value.glucoseUnit
+        val patientInfos = connections.map { conn ->
+            PatientInfo(
+                patientId = conn.id,
+                firstName = conn.displayName,
+                lastName = "",
+                sensorActive = conn.sensorActive,
+                lastGlucose = formatLastGlucose(conn.lastGlucoseMmol, unit),
+                displayUnit = unit
+            )
+        }
+        _uiState.update {
+            it.copy(isLoading = false, showPatientPicker = true, patients = patientInfos)
+        }
+    }
+
+    private fun formatLastGlucose(glucoseMmol: Double?, unit: String): String =
+        if (unit == "mg/dL") {
+            glucoseMmol?.let { g -> "%.0f".format(g * 18) } ?: ""
+        } else {
+            glucoseMmol?.let { g -> "%.1f".format(g) } ?: ""
+        }
 
     fun selectPatient(patientId: String) {
         viewModelScope.launch {
@@ -455,10 +452,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                     .onFailure { e ->
-                        val msg = when {
-                            e.message?.contains("403") == true -> "Authentication expired. Try signing in again."
-                            e.message?.contains("Unable to resolve") == true -> "No internet connection"
-                            else -> e.message ?: "Could not fetch data"
+                        val msg = when (e) {
+                            is GlucoseError.SessionExpired -> "Authentication expired. Try signing in again."
+                            is GlucoseError.NetworkError -> "No internet connection"
+                            is GlucoseError -> e.message
+                            else -> when {
+                                e.message?.contains("Unable to resolve") == true -> "No internet connection"
+                                else -> e.message ?: "Could not fetch data"
+                            }
                         }
                         _uiState.update { it.copy(isLoading = false, error = msg) }
                     }

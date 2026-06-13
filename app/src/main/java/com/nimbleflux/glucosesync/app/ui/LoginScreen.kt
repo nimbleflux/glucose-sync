@@ -213,30 +213,32 @@ fun LoginScreen(
                         exit = fadeOut()
                     ) {
                         if (error != null) {
-                            Surface(
-                                shape = MaterialTheme.shapes.medium,
-                                color = MaterialTheme.colorScheme.errorContainer,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                            Column {
+                                Surface(
+                                    shape = MaterialTheme.shapes.medium,
+                                    color = MaterialTheme.colorScheme.errorContainer,
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Icon(
-                                        Icons.Filled.ErrorOutline,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onErrorContainer,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = error,
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.ErrorOutline,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = error,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
                                 }
+                                Spacer(modifier = Modifier.height(12.dp))
                             }
-                            Spacer(modifier = Modifier.height(12.dp))
                         }
                     }
 

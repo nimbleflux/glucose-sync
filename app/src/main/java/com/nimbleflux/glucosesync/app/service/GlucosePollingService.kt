@@ -10,6 +10,7 @@ import com.nimbleflux.glucosesync.shared.data.CredentialStore
 import com.nimbleflux.glucosesync.shared.domain.GlucoseAggregator
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
+import com.nimbleflux.glucosesync.shared.provider.GlucoseError
 import com.nimbleflux.glucosesync.shared.provider.GlucoseProvider
 import com.nimbleflux.glucosesync.shared.provider.ProviderRegistry
 import com.nimbleflux.glucosesync.shared.provider.libre.LibreLinkUpProvider
@@ -212,17 +213,19 @@ class GlucosePollingService : android.app.Service() {
                 }
             }.onFailure { e ->
                 if (BuildConfig.DEBUG) Log.e(TAG, "Polling error: ${e.message}")
-                if (p is LibreLinkUpProvider) {
-                    val msg = e.message ?: ""
-                    if (msg.contains("403") || msg.contains("401") || msg.contains("Session expired")) {
-                        if (BuildConfig.DEBUG) Log.d(TAG, "Attempting LibreLinkUp re-auth")
-                        val reAuthed = p.reAuthenticate()
-                        if (reAuthed) {
-                            credentialStore.saveSelectedProvider("libre_linkup")
-                            if (BuildConfig.DEBUG) Log.d(TAG, "LibreLinkUp re-auth succeeded")
-                        } else {
-                            if (BuildConfig.DEBUG) Log.e(TAG, "LibreLinkUp re-auth failed")
-                        }
+                val shouldReauth = when (e) {
+                    is GlucoseError.SessionExpired -> true
+                    is GlucoseError.ServerError -> e.code == 401 || e.code == 403
+                    else -> e.message?.contains("403") == true || e.message?.contains("401") == true
+                }
+                if (shouldReauth && p is LibreLinkUpProvider) {
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Attempting LibreLinkUp re-auth")
+                    val reAuthed = p.reAuthenticate()
+                    if (reAuthed) {
+                        credentialStore.saveSelectedProvider("libre_linkup")
+                        if (BuildConfig.DEBUG) Log.d(TAG, "LibreLinkUp re-auth succeeded")
+                    } else {
+                        if (BuildConfig.DEBUG) Log.e(TAG, "LibreLinkUp re-auth failed")
                     }
                 }
             }

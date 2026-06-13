@@ -128,6 +128,10 @@ data class MonitorConnection(
     val real_name: String = "",
     val sensor_status: SensorStatus = SensorStatus(),
     val pump_status: PumpStatus = PumpStatus()
-) {
-    val displayName: String get() = alias.ifBlank { real_name }
+) : com.nimbleflux.glucosesync.shared.provider.Connection {
+    override val id: String get() = uid.toString()
+    override val displayName: String get() = alias.ifBlank { real_name }
+    override val sensorActive: Boolean get() = sensor_status.glucose?.let { it > 0 } ?: false
+    override val lastGlucoseMmol: Double? get() = sensor_status.glucose
+    override val displayUnit: String get() = "mmol/L"
 }
