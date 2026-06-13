@@ -58,7 +58,7 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
             val service = buildApi(creds.baseUrl)
             val response = service.login(LoginRequest(creds.username, creds.password))
             if (response.error != 0) {
-                Result.failure(Exception("Login failed with error: ${response.error}"))
+                Result.failure(GlucoseError.ServerError(response.error, "Login failed"))
             } else {
                 uid = response.uid
                 realname = response.realname
@@ -77,8 +77,10 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
                     )
                 )
             }
+        } catch (e: java.io.IOException) {
+            Result.failure(GlucoseError.NetworkError(e))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(GlucoseError.Unknown(e.message ?: "Login failed", e))
         }
     }
 
@@ -129,11 +131,11 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
 
     override suspend fun fetchGlucose(): Result<GlucoseSnapshot> {
         return try {
-            val service = api ?: return Result.failure(Exception("Not logged in"))
+            val service = api ?: return Result.failure(GlucoseError.NotLoggedIn)
             val param = buildTodayParam()
             val response = service.getStatus(monitorUid, param)
             if (response.error != 0 || response.data == null) {
-                Result.failure(Exception("Status failed with error: ${response.error}"))
+                Result.failure(GlucoseError.ServerError(response.error, "Status failed"))
             } else {
                 val sensor = response.data.sensor_status
                 val chart = response.data.chart
@@ -183,8 +185,10 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
                     )
                 )
             }
+        } catch (e: java.io.IOException) {
+            Result.failure(GlucoseError.NetworkError(e))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(GlucoseError.Unknown(e.message ?: "Fetch failed", e))
         }
     }
 

@@ -39,13 +39,13 @@ class LibreLinkUpProvider(private val context: Context, private val debug: Boole
             val response = api.login(LibreLoginRequest(creds.username, creds.password))
 
             if (response.status == 2) {
-                return Result.failure(Exception("Invalid credentials"))
+                return Result.failure(GlucoseError.InvalidCredentials)
             }
             if (response.status == 4) {
-                return Result.failure(Exception("Terms not accepted. Please accept terms in the LibreLinkUp app first."))
+                return Result.failure(GlucoseError.TermsNotAccepted)
             }
 
-            val data = response.data ?: return Result.failure(Exception("Empty login response"))
+            val data = response.data ?: return Result.failure(GlucoseError.ParseError("Empty login response"))
 
             if (data.redirect && data.region != null) {
                 val correctUrl = LibreRegions.urlForCode(data.region)
@@ -55,8 +55,8 @@ class LibreLinkUpProvider(private val context: Context, private val debug: Boole
                 }
             }
 
-            val user = data.user ?: return Result.failure(Exception("No user data in response"))
-            val authTicket = data.authTicket ?: return Result.failure(Exception("No auth ticket in response"))
+            val user = data.user ?: return Result.failure(GlucoseError.ParseError("No user data in response"))
+            val authTicket = data.authTicket ?: return Result.failure(GlucoseError.ParseError("No auth ticket in response"))
 
             storeSession(user, authTicket, creds.username, creds.password, creds.baseUrl)
             buildAuthenticatedApi()
@@ -78,8 +78,10 @@ class LibreLinkUpProvider(private val context: Context, private val debug: Boole
                     )
                 )
             )
+        } catch (e: java.io.IOException) {
+            Result.failure(GlucoseError.NetworkError(e))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(GlucoseError.Unknown(e.message ?: "Login failed", e))
         }
     }
 
@@ -87,9 +89,9 @@ class LibreLinkUpProvider(private val context: Context, private val debug: Boole
         return try {
             val api = LibreApiClient.createUnauthenticated(baseUrl, debug)
             val response = api.login(LibreLoginRequest(email, password))
-            val data = response.data ?: return Result.failure(Exception("Empty login response after redirect"))
-            val user = data.user ?: return Result.failure(Exception("No user data"))
-            val authTicket = data.authTicket ?: return Result.failure(Exception("No auth ticket"))
+            val data = response.data ?: return Result.failure(GlucoseError.ParseError("Empty login response after redirect"))
+            val user = data.user ?: return Result.failure(GlucoseError.ParseError("No user data"))
+            val authTicket = data.authTicket ?: return Result.failure(GlucoseError.ParseError("No auth ticket"))
 
             storeSession(user, authTicket, email, password, baseUrl)
             buildAuthenticatedApi()
@@ -111,8 +113,10 @@ class LibreLinkUpProvider(private val context: Context, private val debug: Boole
                     )
                 )
             )
+        } catch (e: java.io.IOException) {
+            Result.failure(GlucoseError.NetworkError(e))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(GlucoseError.Unknown(e.message ?: "Login failed", e))
         }
     }
 
@@ -179,21 +183,21 @@ class LibreLinkUpProvider(private val context: Context, private val debug: Boole
     }
 
     override suspend fun fetchGlucose(): Result<GlucoseSnapshot> {
-        val api = authenticatedApi ?: return Result.failure(Exception("Not logged in"))
-        val pid = patientId.ifBlank { return Result.failure(Exception("No patient selected")) }
+        val api = authenticatedApi ?: return Result.failure(GlucoseError.NotLoggedIn)
+        val pid = patientId.ifBlank { return Result.failure(GlucoseError.NoPatientSelected) }
 
         if (tokenExpires > 0 && System.currentTimeMillis() / 1000 > tokenExpires) {
             val reAuthed = reAuthenticate()
-            if (!reAuthed) return Result.failure(Exception("Session expired. Please sign in again."))
+            if (!reAuthed) return Result.failure(GlucoseError.SessionExpired)
         }
 
         return try {
             val response = api.getGraph(pid)
             if (response.status != 0) {
-                return Result.failure(Exception("Graph request failed with status ${response.status}"))
+                return Result.failure(GlucoseError.ServerError(response.status, "Graph request failed"))
             }
 
-            val data = response.data ?: return Result.failure(Exception("No graph data"))
+            val data = response.data ?: return Result.failure(GlucoseError.NoData)
             val connection = data.connection
             val graphData = data.graphData ?: emptyList()
 
@@ -219,8 +223,10 @@ class LibreLinkUpProvider(private val context: Context, private val debug: Boole
                     history = history
                 )
             )
+        } catch (e: java.io.IOException) {
+            Result.failure(GlucoseError.NetworkError(e))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(GlucoseError.Unknown(e.message ?: "Fetch failed", e))
         }
     }
 

@@ -1,6 +1,7 @@
 package com.nimbleflux.glucosesync.shared.provider.libre
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.JsonElement
 
 @Serializable
@@ -50,7 +51,7 @@ data class LibreConnectionsResponse(
 
 @Serializable
 data class LibreConnection(
-    val id: String = "",
+    @SerialName("id") val serverId: String = "",
     val patientId: String = "",
     val firstName: String = "",
     val lastName: String = "",
@@ -62,10 +63,13 @@ data class LibreConnection(
     val sensor: LibreSensor? = null,
     val glucoseMeasurement: LibreGlucoseMeasurement? = null,
     val created: Long = 0
-) {
+) : com.nimbleflux.glucosesync.shared.provider.Connection {
+    override val id: String get() = patientId
     val fullName: String get() = "$firstName $lastName".trim()
-    val sensorActive: Boolean get() = sensor?.s == true
-    val displayUnit: String get() = if (uom == 1) "mg/dL" else "mmol/L"
+    override val displayName: String get() = fullName
+    override val sensorActive: Boolean get() = sensor?.s == true
+    override val lastGlucoseMmol: Double? get() = glucoseMeasurement?.Value
+    override val displayUnit: String get() = if (uom == 1) "mg/dL" else "mmol/L"
 }
 
 @Serializable
