@@ -108,6 +108,7 @@ class MainActivity : ComponentActivity() {
                             onThemeChange = { viewModel.setThemeMode(it) },
                             showWearInstall = state.watchPaired && !state.wearAppInstalled,
                             onInstallWearApp = { viewModel.openWatchPlayStore() },
+                            settingsLoaded = state.settingsLoaded,
                             onLogout = {
                                 context.stopService(Intent(context, GlucosePollingService::class.java))
                                 viewModel.logout()

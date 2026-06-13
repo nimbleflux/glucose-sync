@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -26,6 +27,8 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,6 +57,7 @@ fun SettingsScreen(
     onThemeChange: (String) -> Unit,
     showWearInstall: Boolean,
     onInstallWearApp: () -> Unit,
+    settingsLoaded: Boolean,
     onLogout: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -61,6 +65,18 @@ fun SettingsScreen(
     val highDisplay = if (isMmol) highThresholdMmol else highThresholdMmol * 18
     val lowDisplay = if (isMmol) lowThresholdMmol else lowThresholdMmol * 18
     val unitLabel = currentUnit
+
+    var resumeTick by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                resumeTick++
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(
         topBar = {
@@ -227,11 +243,11 @@ fun SettingsScreen(
                         )
                     }
 
-                    if (overrideDnd) {
+                    if (overrideDnd && settingsLoaded) {
                         val context = LocalContext.current
                         val nm = remember { context.getSystemService(NotificationManager::class.java) }
 
-                        val hasDndAccess = remember(overrideDnd) { nm.isNotificationPolicyAccessGranted }
+                        val hasDndAccess = remember(resumeTick, settingsLoaded) { nm.isNotificationPolicyAccessGranted }
                         if (!hasDndAccess) {
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                             PermissionWarning(
@@ -244,7 +260,7 @@ fun SettingsScreen(
                         }
 
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                            val hasFsiAccess = remember(overrideDnd) {
+                            val hasFsiAccess = remember(resumeTick, settingsLoaded) {
                                 nm.canUseFullScreenIntent()
                             }
                             if (!hasFsiAccess) {
