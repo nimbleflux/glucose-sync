@@ -45,6 +45,9 @@ import com.nimbleflux.glucosesync.wear.R
 import com.nimbleflux.glucosesync.wear.complication.ComplicationIcons
 import com.nimbleflux.glucosesync.wear.repository.GlucoseRepository
 import com.nimbleflux.glucosesync.wear.repository.WatchGlucoseState
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
@@ -224,7 +227,10 @@ private fun GlucoseDashboard(state: WatchGlucoseState, onRefresh: () -> Unit) {
         if (dragOffset > 40f || refreshing) {
             LaunchedEffect(refreshing) {
                 if (refreshing) {
-                    kotlinx.coroutines.delay(2000)
+                    val startedAt = state.timestamp
+                    withTimeoutOrNull(10_000) {
+                        snapshotFlow { state.timestamp }.first { it > startedAt }
+                    }
                     refreshing = false
                 }
             }
@@ -471,7 +477,11 @@ private fun StaleGlucoseScreen(state: WatchGlucoseState, onRefresh: () -> Unit) 
                     indicatorColor = MaterialTheme.colors.primary
                 )
                 LaunchedEffect(refreshing) {
-                    kotlinx.coroutines.delay(2000)
+                    if (!refreshing) return@LaunchedEffect
+                    val startedAt = state.timestamp
+                    withTimeoutOrNull(10_000) {
+                        snapshotFlow { state.timestamp }.first { it > startedAt }
+                    }
                     refreshing = false
                 }
             }
