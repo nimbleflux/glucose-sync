@@ -9,10 +9,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -20,6 +22,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import com.nimbleflux.glucosesync.app.R
+import android.app.NotificationManager
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -220,6 +226,46 @@ fun SettingsScreen(
                             colors = SwitchDefaults.colors(checkedTrackColor = MaterialTheme.colorScheme.primary)
                         )
                     }
+
+                    if (overrideDnd) {
+                        val context = LocalContext.current
+                        val nm = remember { context.getSystemService(NotificationManager::class.java) }
+
+                        val hasDndAccess = remember(overrideDnd) { nm.isNotificationPolicyAccessGranted }
+                        if (!hasDndAccess) {
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                            PermissionWarning(
+                                title = stringResource(R.string.settings_dnd_access_missing),
+                                description = stringResource(R.string.settings_dnd_access_missing_desc),
+                                onGrant = {
+                                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+                                }
+                            )
+                        }
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                            val hasFsiAccess = remember(overrideDnd) {
+                                nm.canUseFullScreenIntent()
+                            }
+                            if (!hasFsiAccess) {
+                                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                                PermissionWarning(
+                                    title = stringResource(R.string.settings_fullscreen_missing),
+                                    description = stringResource(R.string.settings_fullscreen_missing_desc),
+                                    onGrant = {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                                            context.startActivity(
+                                                Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
+                                                    data = android.net.Uri.parse("package:${context.packageName}")
+                                                }
+                                            )
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
                     Row(
@@ -562,5 +608,38 @@ private fun PrivacyItem(title: String, detail: String) {
         Text(title, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium))
         Spacer(modifier = Modifier.height(2.dp))
         Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun PermissionWarning(
+    title: String,
+    description: String,
+    onGrant: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Filled.Warning,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.error)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        FilledTonalButton(
+            onClick = onGrant,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+        ) {
+            Text(stringResource(R.string.settings_grant), style = MaterialTheme.typography.labelMedium)
+        }
     }
 }

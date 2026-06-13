@@ -50,6 +50,11 @@
     <string name="settings_enable_alerts_desc">Get notified when glucose is out of range</string>
     <string name="settings_override_dnd">Override Do Not Disturb</string>
     <string name="settings_override_dnd_desc">Alerts will always sound, even in DND mode</string>
+    <string name="settings_dnd_access_missing">DND access not granted</string>
+    <string name="settings_dnd_access_missing_desc">Grant Do Not Disturb access so alerts can bypass DND mode</string>
+    <string name="settings_grant">Grant</string>
+    <string name="settings_fullscreen_missing">Full-screen alert access not granted</string>
+    <string name="settings_fullscreen_missing_desc">Allow full-screen alerts to show over other apps when glucose is out of range</string>
     <string name="settings_sound">Sound</string>
     <string name="settings_sound_desc">Play alarm sound with alerts</string>
     <string name="settings_vibration">Vibration</string>
