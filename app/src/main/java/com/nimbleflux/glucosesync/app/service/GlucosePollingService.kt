@@ -3,6 +3,7 @@ package com.nimbleflux.glucosesync.app.service
 import android.app.*
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.os.PowerManager
 import android.util.Log
 import com.nimbleflux.glucosesync.app.BuildConfig
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
@@ -37,6 +38,7 @@ class GlucosePollingService : android.app.Service() {
     private var lastUnit: String = "mmol/L"
     private var lastBattery: Double? = null
     private var lastTimestamp: Long = 0L
+    private var wakeLock: PowerManager.WakeLock? = null
 
     private val messageListener = MessageClient.OnMessageReceivedListener { messageEvent ->
         if (messageEvent.path == "/request_glucose") {
@@ -54,6 +56,7 @@ class GlucosePollingService : android.app.Service() {
         settingsStore = SettingsStore(this)
         alertManager = GlucoseAlertManager(this)
         Wearable.getMessageClient(this).addListener(messageListener)
+        PollingWorker.schedule(this)
     }
 
     override fun onBind(intent: Intent?): android.os.IBinder? = null
@@ -80,6 +83,22 @@ class GlucosePollingService : android.app.Service() {
 
         val notification = GlucoseNotificationBuilder.buildDefault(this, channelId)
         startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "glucosesync:polling").apply {
+            acquire(60_000L)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let {
+            if (it.isHeld) it.release()
+        }
+        wakeLock = null
     }
 
     private fun updateNotification() {
@@ -120,7 +139,12 @@ class GlucosePollingService : android.app.Service() {
             }
 
             while (isActive) {
-                fetchAndSync()
+                acquireWakeLock()
+                try {
+                    fetchAndSync()
+                } finally {
+                    releaseWakeLock()
+                }
                 delay(POLLING_INTERVAL_MS)
             }
         }
@@ -136,12 +160,7 @@ class GlucosePollingService : android.app.Service() {
                     val timestamp = snapshot.timestamp
                     if (BuildConfig.DEBUG) Log.d(TAG, "Glucose: $glucose at $timestamp")
 
-                    if (snapshot.history.isNotEmpty()) {
-                        accumulatedHistory.clear()
-                        accumulatedHistory.addAll(snapshot.history)
-                    } else {
-                        accumulatedHistory.add(GlucoseHistoryPoint(timestamp, glucose))
-                    }
+                    mergeHistory(snapshot.history, timestamp, glucose)
                     val cutoff = System.currentTimeMillis() / 1000 - 86400
                     while (accumulatedHistory.isNotEmpty() && accumulatedHistory.first().timestamp < cutoff) {
                         accumulatedHistory.removeAt(0)
@@ -211,6 +230,24 @@ class GlucosePollingService : android.app.Service() {
         }
     }
 
+    private fun mergeHistory(providerHistory: List<GlucoseHistoryPoint>, timestamp: Long, glucose: Double) {
+        if (providerHistory.isEmpty()) {
+            accumulatedHistory.add(GlucoseHistoryPoint(timestamp, glucose))
+            return
+        }
+
+        val providerTimestamps = providerHistory.map { it.timestamp }.toSet()
+        val i = accumulatedHistory.iterator()
+        while (i.hasNext()) {
+            val point = i.next()
+            if (point.timestamp in providerTimestamps) {
+                i.remove()
+            }
+        }
+        accumulatedHistory.addAll(providerHistory)
+        accumulatedHistory.sortBy { it.timestamp }
+    }
+
     private fun syncToWatch(glucose: Double, timestamp: Long, trend: String, delta: Double?, unit: String, snapshot: GlucoseSnapshot) {
         try {
             val request = PutDataMapRequest.create("/glucose").apply {
@@ -247,6 +284,7 @@ class GlucosePollingService : android.app.Service() {
         Wearable.getMessageClient(this).removeListener(messageListener)
         pollingJob?.cancel()
         scope.cancel()
+        releaseWakeLock()
         super.onDestroy()
     }
 

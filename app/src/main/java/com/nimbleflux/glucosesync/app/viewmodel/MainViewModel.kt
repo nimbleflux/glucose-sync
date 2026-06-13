@@ -413,7 +413,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 p.fetchGlucose()
                     .onSuccess { snapshot ->
                         val history = if (snapshot.history.isNotEmpty()) {
-                            snapshot.history.trimTo24h()
+                            mergeHistory(_uiState.value.history, snapshot.history)
                         } else {
                             val currentHistory = _uiState.value.history.toMutableList()
                             val g = snapshot.glucose
@@ -541,6 +541,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun List<GlucoseHistoryPoint>.trimTo24h(): List<GlucoseHistoryPoint> {
         val cutoff = System.currentTimeMillis() / 1000 - 86400
         return this.filter { it.timestamp >= cutoff }
+    }
+
+    private fun mergeHistory(
+        existing: List<GlucoseHistoryPoint>,
+        providerHistory: List<GlucoseHistoryPoint>
+    ): List<GlucoseHistoryPoint> {
+        val providerTimestamps = providerHistory.map { it.timestamp }.toSet()
+        val kept = existing.filter { it.timestamp !in providerTimestamps }
+        return (kept + providerHistory)
+            .sortedBy { it.timestamp }
+            .trimTo24h()
     }
 
     fun showSettings() { _uiState.update { it.copy(showSettings = true) } }

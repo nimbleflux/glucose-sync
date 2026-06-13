@@ -96,20 +96,24 @@ class GlucoseAlertManager(private val context: Context) {
 
         val text = context.getString(R.string.alert_threshold_text, glucose, unit, comparison, threshold)
 
+        val tapIntent = PendingIntent.getActivity(
+            context, 0,
+            Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
         val builder = Notification.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(Notification.BigTextStyle().bigText(text))
-            .setCategory(Notification.CATEGORY_STATUS)
+            .setCategory(Notification.CATEGORY_ALARM)
             .setAutoCancel(true)
-            .setContentIntent(
-                PendingIntent.getActivity(
-                    context, 0,
-                    Intent(context, MainActivity::class.java),
-                    PendingIntent.FLAG_IMMUTABLE
-                )
-            )
+            .setContentIntent(tapIntent)
+
+        if (overrideDnd) {
+            builder.setFullScreenIntent(tapIntent, true)
+        }
 
         nm.notify(id, builder.build())
     }
@@ -136,14 +140,21 @@ class GlucoseAlertManager(private val context: Context) {
         vibratePattern: LongArray,
         overrideDnd: Boolean
     ) {
-        if (nm.getNotificationChannel(channelId) != null) return
+        val existing = nm.getNotificationChannel(channelId)
+        if (existing != null) {
+            if (existing.canBypassDnd() != overrideDnd) {
+                nm.deleteNotificationChannel(channelId)
+            } else {
+                return
+            }
+        }
 
         val sound = if (soundEnabled) {
             RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         } else null
 
         val audioAttrs = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .setUsage(AudioAttributes.USAGE_ALARM)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
 

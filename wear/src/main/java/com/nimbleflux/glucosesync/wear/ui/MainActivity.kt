@@ -38,6 +38,7 @@ import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.*
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.Wearable
+import com.google.android.gms.tasks.Tasks
 import com.nimbleflux.glucosesync.wear.BuildConfig
 import com.nimbleflux.glucosesync.wear.R
 import com.nimbleflux.glucosesync.wear.repository.GlucoseRepository
@@ -93,14 +94,36 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestFreshData() {
-        try {
-            Wearable.getNodeClient(this).connectedNodes.addOnSuccessListener { nodes ->
-                val messageClient = Wearable.getMessageClient(this)
-                for (node in nodes) {
-                    messageClient.sendMessage("/request_glucose", node.id, ByteArray(0))
+        requestFreshDataWithRetry(maxAttempts = 3)
+    }
+
+    private fun requestFreshDataWithRetry(maxAttempts: Int) {
+        var attempt = 0
+        Thread {
+            try {
+                Wearable.getNodeClient(this).connectedNodes.addOnSuccessListener { nodes ->
+                    if (nodes.isEmpty()) return@addOnSuccessListener
+                    val messageClient = Wearable.getMessageClient(this)
+                    Thread {
+                        for (node in nodes) {
+                            attempt = 0
+                            while (attempt < maxAttempts) {
+                                try {
+                                    com.google.android.gms.tasks.Tasks.await(
+                                        messageClient.sendMessage("/request_glucose", node.id, ByteArray(0)),
+                                        5, java.util.concurrent.TimeUnit.SECONDS
+                                    )
+                                    break
+                                } catch (_: Exception) {
+                                    attempt++
+                                    if (attempt < maxAttempts) Thread.sleep(2000L)
+                                }
+                            }
+                        }
+                    }.start()
                 }
-            }
-        } catch (_: Exception) { }
+            } catch (_: Exception) { }
+        }.start()
     }
 }
 
