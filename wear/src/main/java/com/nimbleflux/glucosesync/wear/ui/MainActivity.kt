@@ -24,6 +24,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -46,7 +47,9 @@ import com.nimbleflux.glucosesync.wear.complication.ComplicationIcons
 import com.nimbleflux.glucosesync.wear.repository.GlucoseRepository
 import com.nimbleflux.glucosesync.wear.repository.WatchGlucoseState
 import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
@@ -510,6 +513,22 @@ private fun StaleGlucoseScreen(state: WatchGlucoseState, onRefresh: () -> Unit) 
 
 @Composable
 private fun WaitingForDataScreen() {
+    val context = LocalContext.current
+    var phoneReachable by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(Unit) {
+        phoneReachable = withContext(Dispatchers.IO) {
+            try {
+                val nodes = Tasks.await(
+                    Wearable.getNodeClient(context).connectedNodes,
+                    5, TimeUnit.SECONDS
+                )
+                nodes.isNotEmpty()
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -521,21 +540,31 @@ private fun WaitingForDataScreen() {
             modifier = Modifier.size(36.dp)
         )
         Spacer(modifier = Modifier.height(12.dp))
-        CircularProgressIndicator(
-            modifier = Modifier.size(24.dp),
-            strokeWidth = 2.dp,
-            indicatorColor = MaterialTheme.colors.primary
-        )
-        Spacer(modifier = Modifier.height(12.dp))
+        if (phoneReachable != false) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                strokeWidth = 2.dp,
+                indicatorColor = MaterialTheme.colors.primary
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        } else {
+            Spacer(modifier = Modifier.height(6.dp))
+        }
         Text(
-            text = stringResource(R.string.waiting_for_data),
+            text = stringResource(
+                if (phoneReachable == false) R.string.waiting_no_phone
+                else R.string.waiting_for_data
+            ),
             fontSize = 12.sp,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colors.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = stringResource(R.string.waiting_for_data_hint),
+            text = stringResource(
+                if (phoneReachable == false) R.string.waiting_no_phone_hint
+                else R.string.waiting_for_data_hint
+            ),
             fontSize = 10.sp,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colors.onSurfaceVariant.copy(alpha = 0.6f)
