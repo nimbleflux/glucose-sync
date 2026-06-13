@@ -46,6 +46,8 @@ import com.nimbleflux.glucosesync.wear.repository.WatchGlucoseState
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
+private val LowColor = Color(0xFF4FC3F7)
+
 class MainActivity : ComponentActivity() {
 
     private val repo by lazy { GlucoseRepository.getInstance(this) }
@@ -255,7 +257,8 @@ private fun GlucoseHero(state: WatchGlucoseState) {
     val color = when {
         inRange -> MaterialTheme.colors.primary
         nearBoundary -> Color(0xFFFF9800)
-        else -> MaterialTheme.colors.error
+        state.glucose > state.highThreshold -> MaterialTheme.colors.error
+        else -> LowColor
     }
 
     Column(
@@ -292,7 +295,8 @@ private fun GlucoseHero(state: WatchGlucoseState) {
             state.delta?.let { delta ->
                 Spacer(modifier = Modifier.width(6.dp))
                 val deltaColor = when {
-                    delta > 0.5 || delta < -0.5 -> MaterialTheme.colors.error
+                    delta > 0.5 -> MaterialTheme.colors.error
+                    delta < -0.5 -> LowColor
                     delta > 0.1 || delta < -0.1 -> Color(0xFFFF9800)
                     else -> MaterialTheme.colors.primary
                 }
