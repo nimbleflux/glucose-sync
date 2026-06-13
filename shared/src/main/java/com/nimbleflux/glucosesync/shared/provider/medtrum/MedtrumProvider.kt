@@ -39,6 +39,9 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
     override val authType = AuthType.USERNAME_PASSWORD
     override val realtimeFlow: SharedFlow<GlucoseSnapshot>? = null
     override fun supportsHistory(): Boolean = true
+    override fun supportsConnections(): Boolean = isCarer()
+    override fun supportsPump(): Boolean = true
+    override fun supportsDelta(): Boolean = true
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val credentialStore = CredentialStore(context)
@@ -106,12 +109,15 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
 
     fun isCarer(): Boolean = userType == "M"
 
-    suspend fun getConnections(): List<MonitorConnection> {
+    private var cachedConnections: List<MonitorConnection> = emptyList()
+
+    override suspend fun getConnections(): List<Connection> {
         val service = api ?: return emptyList()
         return try {
             val response = service.getConnections()
             if (response.error == 0 && response.data != null) {
-                response.data.items
+                cachedConnections = response.data.items
+                cachedConnections
             } else {
                 emptyList()
             }
@@ -120,12 +126,14 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
         }
     }
 
-    fun selectPatient(patientUid: Long, patientName: String? = null) {
-        monitorUid = patientUid
-        credentialStore.saveMedtrumPatientUidSync(patientUid)
-        if (patientName != null) {
-            credentialStore.saveMedtrumPatientNameSync(patientName)
-            credentialStore.saveSessionDisplayNameSync(patientName)
+    override suspend fun selectPatient(id: String) {
+        val uid = id.toLongOrNull() ?: return
+        val name = cachedConnections.firstOrNull { it.uid == uid }?.displayName
+        monitorUid = uid
+        credentialStore.saveMedtrumPatientUidSync(uid)
+        if (name != null) {
+            credentialStore.saveMedtrumPatientNameSync(name)
+            credentialStore.saveSessionDisplayNameSync(name)
         }
     }
 
