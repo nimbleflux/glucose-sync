@@ -18,8 +18,6 @@ import com.nimbleflux.glucosesync.shared.provider.GlucoseError
 import com.nimbleflux.glucosesync.shared.provider.GlucoseProvider
 import com.nimbleflux.glucosesync.shared.provider.ProviderCredentials
 import com.nimbleflux.glucosesync.shared.provider.ProviderRegistry
-import com.nimbleflux.glucosesync.shared.provider.libre.LibreLinkUpProvider
-import com.nimbleflux.glucosesync.shared.provider.medtrum.MedtrumProvider
 import com.nimbleflux.glucosesync.shared.wear.WatchPayload
 import com.nimbleflux.glucosesync.shared.wear.WatchPayloadCodec
 import com.nimbleflux.glucosesync.app.ui.PatientInfo
@@ -170,18 +168,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
 
-                    if (p is MedtrumProvider && p.isCarer()) {
-                        val savedPatientName = credentialStore.getMedtrumPatientName()
-                        if (savedPatientName != null) {
-                            _uiState.update { it.copy(realname = savedPatientName) }
-                        }
-                    } else if (p is LibreLinkUpProvider) {
-                        val savedPatientId = credentialStore.getLibrePatientId()
-                        if (savedPatientId != null) {
-                            p.selectPatient(savedPatientId)
-                        }
-                    }
-
                     refreshGlucose()
                 } else {
                     _uiState.update { it.copy(restoringSession = false) }
@@ -246,25 +232,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun fetchConnectionsForProvider(p: GlucoseProvider): List<Connection>? {
-        return when (p) {
-            is LibreLinkUpProvider -> p.getConnections()
-            is MedtrumProvider -> if (p.isCarer()) p.getConnections() else null
-            else -> null
-        }
+        return if (p.supportsConnections()) p.getConnections() else null
     }
 
     private suspend fun selectSinglePatient(sessionDisplayName: String, conn: Connection) {
         val p = provider ?: return
-        when (p) {
-            is LibreLinkUpProvider -> {
-                p.selectPatient(conn.id)
-                credentialStore.saveLibrePatient(conn.id)
-            }
-            is MedtrumProvider -> {
-                val uid = conn.id.toLongOrNull() ?: return
-                p.selectPatient(uid, conn.displayName)
-            }
-        }
+        p.selectPatient(conn.id)
         _uiState.update {
             it.copy(
                 isLoggedIn = true,
@@ -302,25 +275,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun selectPatient(patientId: String) {
         viewModelScope.launch {
             val patientName = _uiState.value.patients.find { it.patientId == patientId }?.firstName
-            when (val p = provider) {
-                is LibreLinkUpProvider -> {
-                    p.selectPatient(patientId)
-                    credentialStore.saveLibrePatient(patientId)
-                    if (patientName != null) {
-                        credentialStore.saveSessionDisplayName(patientName)
-                    }
-                }
-                is MedtrumProvider -> {
-                    p.selectPatient(patientId.toLongOrNull() ?: return@launch, patientName)
-                }
+            provider?.selectPatient(patientId)
+            if (patientName != null) {
+                credentialStore.saveSessionDisplayName(patientName)
             }
             val displayName = patientName ?: credentialStore.getSessionDisplayName() ?: ""
             _uiState.update {
                 it.copy(isLoggedIn = true, isLoading = false, showPatientPicker = false, realname = displayName)
             }
-                    refreshGlucose()
-                    startAutoRefresh()
-                }
+            refreshGlucose()
+            startAutoRefresh()
+        }
     }
 
     fun loginDemo() {

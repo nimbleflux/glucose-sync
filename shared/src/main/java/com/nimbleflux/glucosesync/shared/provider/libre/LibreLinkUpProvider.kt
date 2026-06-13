@@ -15,6 +15,9 @@ class LibreLinkUpProvider(private val context: Context, private val debug: Boole
     override val authType = AuthType.USERNAME_PASSWORD
     override val realtimeFlow: SharedFlow<GlucoseSnapshot>? = null
     override fun supportsHistory(): Boolean = true
+    override fun supportsConnections(): Boolean = true
+    override fun supportsPump(): Boolean = false
+    override fun supportsDelta(): Boolean = false
 
     private val credentialStore = CredentialStore(context)
 
@@ -133,7 +136,7 @@ class LibreLinkUpProvider(private val context: Context, private val debug: Boole
         credentialStore.saveLibreSession(token, tokenExpires, userId, accountId, regionUrl)
     }
 
-    suspend fun getConnections(): List<LibreConnection> {
+    override suspend fun getConnections(): List<Connection> {
         return try {
             fetchConnections()
         } catch (_: Exception) { emptyList() }
@@ -146,9 +149,9 @@ class LibreLinkUpProvider(private val context: Context, private val debug: Boole
         return response.data ?: emptyList()
     }
 
-    suspend fun selectPatient(pid: String) {
-        patientId = pid
-        credentialStore.saveLibrePatient(pid)
+    override suspend fun selectPatient(id: String) {
+        patientId = id
+        credentialStore.saveLibrePatient(id)
     }
 
     private fun buildAuthenticatedApi() {
