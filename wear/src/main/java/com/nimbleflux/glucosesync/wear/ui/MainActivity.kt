@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.geometry.Size
@@ -41,6 +42,7 @@ import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.tasks.Tasks
 import com.nimbleflux.glucosesync.wear.BuildConfig
 import com.nimbleflux.glucosesync.wear.R
+import com.nimbleflux.glucosesync.wear.complication.ComplicationIcons
 import com.nimbleflux.glucosesync.wear.repository.GlucoseRepository
 import com.nimbleflux.glucosesync.wear.repository.WatchGlucoseState
 import java.util.Calendar
@@ -269,11 +271,14 @@ private fun GlucoseHero(state: WatchGlucoseState) {
             horizontalArrangement = Arrangement.Center
         ) {
             if (state.trend.isNotEmpty()) {
-                Text(
-                    text = state.trend,
-                    fontSize = 24.sp,
-                    color = color,
-                    modifier = Modifier.padding(end = 4.dp)
+                Image(
+                    painter = painterResource(ComplicationIcons.trendIconResId(state.trend)),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(color),
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .size(20.dp)
+                        .graphicsLayer { translationY = 4f }
                 )
             }
             Text(
