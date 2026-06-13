@@ -9,19 +9,20 @@ import com.nimbleflux.glucosesync.app.data.SettingsStore
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
 import com.nimbleflux.glucosesync.shared.domain.DemoData
 import com.nimbleflux.glucosesync.shared.domain.AlertEntry
+import com.nimbleflux.glucosesync.shared.domain.GlucoseAggregator
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
-import com.nimbleflux.glucosesync.shared.domain.TrendArrow
 import com.nimbleflux.glucosesync.shared.provider.AuthType
 import com.nimbleflux.glucosesync.shared.provider.GlucoseProvider
 import com.nimbleflux.glucosesync.shared.provider.ProviderCredentials
 import com.nimbleflux.glucosesync.shared.provider.ProviderRegistry
 import com.nimbleflux.glucosesync.shared.provider.libre.LibreLinkUpProvider
 import com.nimbleflux.glucosesync.shared.provider.medtrum.MedtrumProvider
+import com.nimbleflux.glucosesync.shared.wear.WatchPayload
+import com.nimbleflux.glucosesync.shared.wear.WatchPayloadCodec
 import com.nimbleflux.glucosesync.app.ui.PatientInfo
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.CapabilityInfo
-import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.tasks.Tasks
 import kotlinx.coroutines.Dispatchers
@@ -356,7 +357,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val currentHistory = _uiState.value.history.toMutableList()
         val snapshot = DemoData.snapshot(currentHistory)
         currentHistory.add(GlucoseHistoryPoint(snapshot.timestamp, snapshot.glucose ?: 5.6))
-        val trimmed = currentHistory.trimTo24h()
+        val trimmed = GlucoseAggregator.trimTo24h(currentHistory)
 
         _uiState.update {
             it.copy(
@@ -415,24 +416,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 p.fetchGlucose()
                     .onSuccess { snapshot ->
                         val history = if (snapshot.history.isNotEmpty()) {
-                            mergeHistory(_uiState.value.history, snapshot.history)
+                            GlucoseAggregator.trimTo24h(
+                                GlucoseAggregator.mergeHistory(_uiState.value.history, snapshot.history)
+                            )
                         } else {
                             val currentHistory = _uiState.value.history.toMutableList()
                             val g = snapshot.glucose
                             if (g != null && snapshot.sensorActive) {
                                 currentHistory.add(GlucoseHistoryPoint(snapshot.timestamp, g))
                             }
-                            currentHistory.trimTo24h()
+                            GlucoseAggregator.trimTo24h(currentHistory)
                         }
 
                         _uiState.update {
                             val deltaMin = it.deltaMinutes
-                            val computedDelta = computeDelta(history, deltaMin) ?: snapshot.delta
-                            val trend = if (snapshot.trend == TrendArrow.UNKNOWN) {
-                                TrendArrow.fromDelta(computedDelta ?: 0.0)
-                            } else {
-                                snapshot.trend
-                            }
+                            val computedDelta = GlucoseAggregator.computeDelta(history, deltaMin) ?: snapshot.delta
+                            val trend = GlucoseAggregator.resolveTrend(snapshot.trend, computedDelta)
                             it.copy(
                                 isLoading = false,
                                 glucose = snapshot.glucose,
@@ -530,32 +529,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun computeDelta(history: List<GlucoseHistoryPoint>, deltaMinutes: Int): Double? {
-        if (history.size < 2) return null
-        val latest = history.last()
-        val targetTime = latest.timestamp - deltaMinutes * 60L
-        val closest = history.filter { it.timestamp <= targetTime }
-            .minByOrNull { Math.abs(it.timestamp - targetTime) }
-            ?: return null
-        return latest.glucoseMmol - closest.glucoseMmol
-    }
-
-    private fun List<GlucoseHistoryPoint>.trimTo24h(): List<GlucoseHistoryPoint> {
-        val cutoff = System.currentTimeMillis() / 1000 - 86400
-        return this.filter { it.timestamp >= cutoff }
-    }
-
-    private fun mergeHistory(
-        existing: List<GlucoseHistoryPoint>,
-        providerHistory: List<GlucoseHistoryPoint>
-    ): List<GlucoseHistoryPoint> {
-        val providerTimestamps = providerHistory.map { it.timestamp }.toSet()
-        val kept = existing.filter { it.timestamp !in providerTimestamps }
-        return (kept + providerHistory)
-            .sortedBy { it.timestamp }
-            .trimTo24h()
-    }
-
     fun showSettings() { _uiState.update { it.copy(showSettings = true) } }
     fun hideSettings() { _uiState.update { it.copy(showSettings = false) } }
 
@@ -595,32 +568,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val glucose = snapshot.glucose ?: return
             val trendSymbol = _uiState.value.trend.ifEmpty { snapshot.trend.symbol }
             val delta = _uiState.value.delta ?: snapshot.delta
+            val payload = WatchPayload(
+                glucose = glucose,
+                timestamp = snapshot.timestamp,
+                trend = trendSymbol,
+                unit = snapshot.unit,
+                iob = snapshot.iob,
+                delta = delta,
+                batteryPercent = snapshot.batteryPercent,
+                basalRate = snapshot.basalRate,
+                lastBolus = snapshot.lastBolus,
+                lastBolusTime = snapshot.lastBolusTime,
+                remainingDose = snapshot.remainingDose,
+                highThreshold = snapshot.highThreshold,
+                lowThreshold = snapshot.lowThreshold,
+                timeInRange = snapshot.timeInRange,
+                averageGlucose = snapshot.averageGlucose,
+                history = GlucoseAggregator.trimHistory(
+                    _uiState.value.history,
+                    WatchPayloadCodec.MAX_HISTORY_AGE_SEC
+                )
+            )
             val dataClient = Wearable.getDataClient(getApplication<Application>())
-            val request = PutDataMapRequest.create("/glucose").apply {
-                dataMap.putDouble("glucose", glucose)
-                dataMap.putLong("timestamp", snapshot.timestamp)
-                dataMap.putString("trend", trendSymbol)
-                dataMap.putString("unit", snapshot.unit)
-                snapshot.iob?.let { dataMap.putDouble("iob", it) }
-                delta?.let { dataMap.putDouble("delta", it) }
-                snapshot.batteryPercent?.let { dataMap.putDouble("batteryPercent", it) }
-                snapshot.basalRate?.let { dataMap.putDouble("basalRate", it) }
-                snapshot.lastBolus?.let { dataMap.putDouble("lastBolus", it) }
-                snapshot.lastBolusTime?.let { dataMap.putLong("lastBolusTime", it) }
-                snapshot.remainingDose?.let { dataMap.putDouble("remainingDose", it) }
-                snapshot.highThreshold?.let { dataMap.putDouble("highThreshold", it) }
-                snapshot.lowThreshold?.let { dataMap.putDouble("lowThreshold", it) }
-                snapshot.timeInRange?.let { dataMap.putDouble("timeInRange", it) }
-                snapshot.averageGlucose?.let { dataMap.putDouble("averageGlucose", it) }
-                val phoneHistory = _uiState.value.history
-                if (phoneHistory.isNotEmpty()) {
-                    val cutoff = System.currentTimeMillis() / 1000 - 7200
-                    val recent = phoneHistory.filter { it.timestamp >= cutoff }
-                    dataMap.putLongArray("history_ts", recent.map { it.timestamp }.toLongArray())
-                    dataMap.putFloatArray("history_gl", recent.map { it.glucoseMmol.toFloat() }.toFloatArray())
-                }
-            }
-            dataClient.putDataItem(request.asPutDataRequest().setUrgent())
+            dataClient.putDataItem(WatchPayloadCodec.toPutDataRequest(payload))
             _uiState.update { it.copy(wearAppInstalled = true) }
         } catch (_: Exception) { }
     }
