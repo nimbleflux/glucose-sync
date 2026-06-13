@@ -7,18 +7,19 @@ import android.os.PowerManager
 import android.util.Log
 import com.nimbleflux.glucosesync.app.BuildConfig
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
+import com.nimbleflux.glucosesync.shared.domain.GlucoseAggregator
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
-import com.nimbleflux.glucosesync.shared.domain.TrendArrow
 import com.nimbleflux.glucosesync.shared.provider.GlucoseProvider
 import com.nimbleflux.glucosesync.shared.provider.ProviderRegistry
 import com.nimbleflux.glucosesync.shared.provider.libre.LibreLinkUpProvider
+import com.nimbleflux.glucosesync.shared.wear.WatchPayload
+import com.nimbleflux.glucosesync.shared.wear.WatchPayloadCodec
 import com.nimbleflux.glucosesync.app.data.SettingsStore
 import com.nimbleflux.glucosesync.app.R
 import com.nimbleflux.glucosesync.app.ui.MainActivity
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.MessageClient
-import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.*
 
@@ -160,19 +161,21 @@ class GlucosePollingService : android.app.Service() {
                     val timestamp = snapshot.timestamp
                     if (BuildConfig.DEBUG) Log.d(TAG, "Glucose: $glucose at $timestamp")
 
-                    mergeHistory(snapshot.history, timestamp, glucose)
-                    val cutoff = System.currentTimeMillis() / 1000 - 86400
-                    while (accumulatedHistory.isNotEmpty() && accumulatedHistory.first().timestamp < cutoff) {
-                        accumulatedHistory.removeAt(0)
+                    val merged = if (snapshot.history.isNotEmpty()) {
+                        GlucoseAggregator.mergeHistory(accumulatedHistory.toList(), snapshot.history)
+                    } else {
+                        GlucoseAggregator.mergeHistory(
+                            accumulatedHistory.toList(),
+                            listOf(GlucoseHistoryPoint(timestamp, glucose))
+                        )
                     }
+                    val trimmed = GlucoseAggregator.trimTo24h(merged)
+                    accumulatedHistory.clear()
+                    accumulatedHistory.addAll(trimmed)
 
                     val deltaMin = try { settingsStore.getDeltaMinutes() } catch (_: Exception) { 5 }
-                    val computedDelta = computeDelta(accumulatedHistory, deltaMin) ?: snapshot.delta
-                    val trend = if (snapshot.trend == TrendArrow.UNKNOWN) {
-                        TrendArrow.fromDelta(computedDelta ?: 0.0)
-                    } else {
-                        snapshot.trend
-                    }
+                    val computedDelta = GlucoseAggregator.computeDelta(accumulatedHistory, deltaMin) ?: snapshot.delta
+                    val trend = GlucoseAggregator.resolveTrend(snapshot.trend, computedDelta)
                     val trendSymbol = trend.symbol
 
                     lastGlucose = glucose
@@ -230,50 +233,30 @@ class GlucosePollingService : android.app.Service() {
         }
     }
 
-    private fun mergeHistory(providerHistory: List<GlucoseHistoryPoint>, timestamp: Long, glucose: Double) {
-        if (providerHistory.isEmpty()) {
-            accumulatedHistory.add(GlucoseHistoryPoint(timestamp, glucose))
-            return
-        }
-
-        val providerTimestamps = providerHistory.map { it.timestamp }.toSet()
-        val i = accumulatedHistory.iterator()
-        while (i.hasNext()) {
-            val point = i.next()
-            if (point.timestamp in providerTimestamps) {
-                i.remove()
-            }
-        }
-        accumulatedHistory.addAll(providerHistory)
-        accumulatedHistory.sortBy { it.timestamp }
-    }
-
     private fun syncToWatch(glucose: Double, timestamp: Long, trend: String, delta: Double?, unit: String, snapshot: GlucoseSnapshot) {
         try {
-            val request = PutDataMapRequest.create("/glucose").apply {
-                dataMap.putDouble("glucose", glucose)
-                dataMap.putLong("timestamp", timestamp)
-                dataMap.putString("trend", trend)
-                dataMap.putString("unit", unit)
-                snapshot.iob?.let { dataMap.putDouble("iob", it) }
-                delta?.let { dataMap.putDouble("delta", it) }
-                snapshot.batteryPercent?.let { dataMap.putDouble("batteryPercent", it) }
-                snapshot.basalRate?.let { dataMap.putDouble("basalRate", it) }
-                snapshot.lastBolus?.let { dataMap.putDouble("lastBolus", it) }
-                snapshot.lastBolusTime?.let { dataMap.putLong("lastBolusTime", it) }
-                snapshot.remainingDose?.let { dataMap.putDouble("remainingDose", it) }
-                snapshot.highThreshold?.let { dataMap.putDouble("highThreshold", it) }
-                snapshot.lowThreshold?.let { dataMap.putDouble("lowThreshold", it) }
-                snapshot.timeInRange?.let { dataMap.putDouble("timeInRange", it) }
-                snapshot.averageGlucose?.let { dataMap.putDouble("averageGlucose", it) }
-                if (accumulatedHistory.isNotEmpty()) {
-                    val cutoff = System.currentTimeMillis() / 1000 - 7200
-                    val recent = accumulatedHistory.filter { it.timestamp >= cutoff }
-                    dataMap.putLongArray("history_ts", recent.map { it.timestamp }.toLongArray())
-                    dataMap.putFloatArray("history_gl", recent.map { it.glucoseMmol.toFloat() }.toFloatArray())
-                }
-            }
-            dataClient.putDataItem(request.asPutDataRequest().setUrgent())
+            val payload = WatchPayload(
+                glucose = glucose,
+                timestamp = timestamp,
+                trend = trend,
+                unit = unit,
+                iob = snapshot.iob,
+                delta = delta,
+                batteryPercent = snapshot.batteryPercent,
+                basalRate = snapshot.basalRate,
+                lastBolus = snapshot.lastBolus,
+                lastBolusTime = snapshot.lastBolusTime,
+                remainingDose = snapshot.remainingDose,
+                highThreshold = snapshot.highThreshold,
+                lowThreshold = snapshot.lowThreshold,
+                timeInRange = snapshot.timeInRange,
+                averageGlucose = snapshot.averageGlucose,
+                history = GlucoseAggregator.trimHistory(
+                    accumulatedHistory.toList(),
+                    WatchPayloadCodec.MAX_HISTORY_AGE_SEC
+                )
+            )
+            dataClient.putDataItem(WatchPayloadCodec.toPutDataRequest(payload))
             if (BuildConfig.DEBUG) Log.d(TAG, "Synced to watch: $glucose $unit")
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) Log.e(TAG, "Watch sync failed: ${e.message}")
@@ -286,16 +269,6 @@ class GlucosePollingService : android.app.Service() {
         scope.cancel()
         releaseWakeLock()
         super.onDestroy()
-    }
-
-    private fun computeDelta(history: List<GlucoseHistoryPoint>, deltaMinutes: Int): Double? {
-        if (history.size < 2) return null
-        val latest = history.last()
-        val targetTime = latest.timestamp - deltaMinutes * 60L
-        val closest = history.filter { it.timestamp <= targetTime }
-            .minByOrNull { Math.abs(it.timestamp - targetTime) }
-            ?: return null
-        return latest.glucoseMmol - closest.glucoseMmol
     }
 
     companion object {
