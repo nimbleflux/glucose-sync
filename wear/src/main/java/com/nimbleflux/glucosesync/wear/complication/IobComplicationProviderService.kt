@@ -34,22 +34,7 @@ class IobComplicationProviderService : ComplicationDataSourceService() {
         val iob = repo.state.value.iob
 
         if (iob == null) {
-            val data = when (request.complicationType) {
-                ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
-                    text = PlainComplicationText.Builder("1.2").build(),
-                    contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_iob, "1.2")).build()
-                ).setMonochromaticImage(dropletMono)
-                    .setTapAction(tapAction()).build()
-                ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
-                    text = PlainComplicationText.Builder("1.2 U").build(),
-                    contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_iob, "1.2")).build()
-                ).setTitle(
-                    PlainComplicationText.Builder(getString(R.string.complication_title_iob)).build()
-                ).setSmallImage(dropletSmall)
-                    .setTapAction(tapAction()).build()
-                else -> NoDataComplicationData()
-            }
-            listener.onComplicationData(data)
+            listener.onComplicationData(NoDataComplicationData())
             return
         }
 

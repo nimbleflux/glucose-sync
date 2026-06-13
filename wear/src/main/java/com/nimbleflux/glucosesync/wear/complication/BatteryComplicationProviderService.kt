@@ -34,30 +34,7 @@ class BatteryComplicationProviderService : ComplicationDataSourceService() {
         val battery = repo.state.value.batteryPercent
 
         if (battery == null) {
-            val data = when (request.complicationType) {
-                ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
-                    text = PlainComplicationText.Builder("91%").build(),
-                    contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_battery, "91")).build()
-                ).setMonochromaticImage(batteryMono)
-                    .setTapAction(tapAction()).build()
-                ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
-                    text = PlainComplicationText.Builder("91%").build(),
-                    contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_battery, "91")).build()
-                ).setTitle(
-                    PlainComplicationText.Builder(getString(R.string.complication_title_battery)).build()
-                ).setSmallImage(batterySmall)
-                    .setTapAction(tapAction()).build()
-                ComplicationType.RANGED_VALUE -> RangedValueComplicationData.Builder(
-                    value = 0.91f,
-                    min = 0.0f,
-                    max = 1.0f,
-                    contentDescription = PlainComplicationText.Builder(getString(R.string.complication_content_description_battery, "91")).build()
-                ).setText(PlainComplicationText.Builder("91%").build())
-                    .setMonochromaticImage(batteryMono)
-                    .setTapAction(tapAction()).build()
-                else -> NoDataComplicationData()
-            }
-            listener.onComplicationData(data)
+            listener.onComplicationData(NoDataComplicationData())
             return
         }
 
