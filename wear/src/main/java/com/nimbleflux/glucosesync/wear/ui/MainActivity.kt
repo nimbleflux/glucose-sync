@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.geometry.Size
@@ -23,6 +24,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -41,10 +43,18 @@ import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.tasks.Tasks
 import com.nimbleflux.glucosesync.wear.BuildConfig
 import com.nimbleflux.glucosesync.wear.R
+import com.nimbleflux.glucosesync.wear.complication.ComplicationIcons
 import com.nimbleflux.glucosesync.wear.repository.GlucoseRepository
 import com.nimbleflux.glucosesync.wear.repository.WatchGlucoseState
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
+
+private val LowColor = Color(0xFF4FC3F7)
 
 class MainActivity : ComponentActivity() {
 
@@ -220,7 +230,10 @@ private fun GlucoseDashboard(state: WatchGlucoseState, onRefresh: () -> Unit) {
         if (dragOffset > 40f || refreshing) {
             LaunchedEffect(refreshing) {
                 if (refreshing) {
-                    kotlinx.coroutines.delay(2000)
+                    val startedAt = state.timestamp
+                    withTimeoutOrNull(10_000) {
+                        snapshotFlow { state.timestamp }.first { it > startedAt }
+                    }
                     refreshing = false
                 }
             }
@@ -255,7 +268,8 @@ private fun GlucoseHero(state: WatchGlucoseState) {
     val color = when {
         inRange -> MaterialTheme.colors.primary
         nearBoundary -> Color(0xFFFF9800)
-        else -> MaterialTheme.colors.error
+        state.glucose > state.highThreshold -> MaterialTheme.colors.error
+        else -> LowColor
     }
 
     Column(
@@ -266,11 +280,14 @@ private fun GlucoseHero(state: WatchGlucoseState) {
             horizontalArrangement = Arrangement.Center
         ) {
             if (state.trend.isNotEmpty()) {
-                Text(
-                    text = state.trend,
-                    fontSize = 24.sp,
-                    color = color,
-                    modifier = Modifier.padding(end = 4.dp)
+                Image(
+                    painter = painterResource(ComplicationIcons.trendIconResId(state.trend)),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(color),
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .size(20.dp)
+                        .graphicsLayer { translationY = 4f }
                 )
             }
             Text(
@@ -292,7 +309,8 @@ private fun GlucoseHero(state: WatchGlucoseState) {
             state.delta?.let { delta ->
                 Spacer(modifier = Modifier.width(6.dp))
                 val deltaColor = when {
-                    delta > 0.5 || delta < -0.5 -> MaterialTheme.colors.error
+                    delta > 0.5 -> MaterialTheme.colors.error
+                    delta < -0.5 -> LowColor
                     delta > 0.1 || delta < -0.1 -> Color(0xFFFF9800)
                     else -> MaterialTheme.colors.primary
                 }
@@ -420,7 +438,14 @@ private fun BatteryChip(state: WatchGlucoseState) {
 
 @Composable
 private fun LastUpdatedText(timestamp: Long) {
-    val now = System.currentTimeMillis() / 1000
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(30_000)
+            tick++
+        }
+    }
+    val now = remember(tick) { System.currentTimeMillis() / 1000 }
     val diffSec = now - timestamp
     val text = when {
         diffSec < 60 -> "Just now"
@@ -462,7 +487,11 @@ private fun StaleGlucoseScreen(state: WatchGlucoseState, onRefresh: () -> Unit) 
                     indicatorColor = MaterialTheme.colors.primary
                 )
                 LaunchedEffect(refreshing) {
-                    kotlinx.coroutines.delay(2000)
+                    if (!refreshing) return@LaunchedEffect
+                    val startedAt = state.timestamp
+                    withTimeoutOrNull(10_000) {
+                        snapshotFlow { state.timestamp }.first { it > startedAt }
+                    }
                     refreshing = false
                 }
             }
@@ -484,6 +513,22 @@ private fun StaleGlucoseScreen(state: WatchGlucoseState, onRefresh: () -> Unit) 
 
 @Composable
 private fun WaitingForDataScreen() {
+    val context = LocalContext.current
+    var phoneReachable by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(Unit) {
+        phoneReachable = withContext(Dispatchers.IO) {
+            try {
+                val nodes = Tasks.await(
+                    Wearable.getNodeClient(context).connectedNodes,
+                    5, TimeUnit.SECONDS
+                )
+                nodes.isNotEmpty()
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -495,21 +540,31 @@ private fun WaitingForDataScreen() {
             modifier = Modifier.size(36.dp)
         )
         Spacer(modifier = Modifier.height(12.dp))
-        CircularProgressIndicator(
-            modifier = Modifier.size(24.dp),
-            strokeWidth = 2.dp,
-            indicatorColor = MaterialTheme.colors.primary
-        )
-        Spacer(modifier = Modifier.height(12.dp))
+        if (phoneReachable != false) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                strokeWidth = 2.dp,
+                indicatorColor = MaterialTheme.colors.primary
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        } else {
+            Spacer(modifier = Modifier.height(6.dp))
+        }
         Text(
-            text = stringResource(R.string.waiting_for_data),
+            text = stringResource(
+                if (phoneReachable == false) R.string.waiting_no_phone
+                else R.string.waiting_for_data
+            ),
             fontSize = 12.sp,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colors.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = stringResource(R.string.waiting_for_data_hint),
+            text = stringResource(
+                if (phoneReachable == false) R.string.waiting_no_phone_hint
+                else R.string.waiting_for_data_hint
+            ),
             fontSize = 10.sp,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colors.onSurfaceVariant.copy(alpha = 0.6f)
