@@ -435,7 +435,14 @@ private fun BatteryChip(state: WatchGlucoseState) {
 
 @Composable
 private fun LastUpdatedText(timestamp: Long) {
-    val now = System.currentTimeMillis() / 1000
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(30_000)
+            tick++
+        }
+    }
+    val now = remember(tick) { System.currentTimeMillis() / 1000 }
     val diffSec = now - timestamp
     val text = when {
         diffSec < 60 -> "Just now"
