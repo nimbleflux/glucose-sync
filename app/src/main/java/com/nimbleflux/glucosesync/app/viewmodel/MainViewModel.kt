@@ -557,6 +557,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         demoPollingJob?.cancel()
         autoRefreshJob?.cancel()
         provider?.logout()
+        // Cancel the WorkManager keepalive too - otherwise it would resurrect
+        // the FGS within 15 minutes of logout, defeating the user's intent.
+        com.nimbleflux.glucosesync.app.service.PollingWorker.cancel(getApplication())
         viewModelScope.launch {
             credentialStore.clear()
             _uiState.update { MainUiState(glucoseUnit = settingsStore.getUnit(), restoringSession = false) }

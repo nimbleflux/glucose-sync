@@ -107,4 +107,10 @@ class SettingsStore(context: Context) {
     fun setLastLowAlertTime(epochMs: Long) {
         prefs.edit().putLong("last_low_alert_time", epochMs).apply()
     }
+
+    fun getLastStaleAlertTime(): Long = prefs.getLong("last_stale_alert_time", 0L)
+
+    fun setLastStaleAlertTime(epochMs: Long) {
+        prefs.edit().putLong("last_stale_alert_time", epochMs).apply()
+    }
 }

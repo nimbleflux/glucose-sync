@@ -97,8 +97,12 @@
     <string name="alert_comparison_above">above</string>
     <string name="alert_comparison_below">below</string>
     <string name="alert_threshold_text">%1$.1f %2$s — %3$s threshold of %4$.1f</string>
+    <string name="alert_stale_title">No recent readings</string>
+    <string name="alert_stale_text">No glucose reading for %1$d minutes. Check your sensor and phone connection.</string>
     <string name="notification_channel_alert">Glucose alert</string>
     <string name="notification_channel_alert_desc">Glucose threshold alerts</string>
+    <string name="notification_channel_stale">Stale data</string>
+    <string name="notification_channel_stale_desc">Alerts when no glucose reading has arrived for an extended period</string>
 
     <string name="wear_app_not_installed">Watch app not detected</string>
     <string name="wear_app_not_installed_desc">Open the Play Store on your watch and search for GlucoseSync to install it.</string>
