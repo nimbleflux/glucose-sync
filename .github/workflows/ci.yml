@@ -49,12 +49,21 @@ jobs:
         with:
           name: test-results
           path: |
-            */build/reports/tests/
-            */build/test-results/
+            app/build/reports/tests/
+            wear/build/reports/tests/
+            shared/build/reports/tests/
+            app/build/test-results/
+            wear/build/test-results/
+            shared/build/test-results/
+          if-no-files-found: ignore
 
       - name: Upload lint reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: lint-reports
-          path: */build/reports/lint-results-*.html
+          path: |
+            app/build/reports/lint-results-*.html
+            wear/build/reports/lint-results-*.html
+            shared/build/reports/lint-results-*.html
+          if-no-files-found: ignore
