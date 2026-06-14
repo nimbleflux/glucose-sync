@@ -1,6 +1,6 @@
 plugins {
-    id("com.android.library")
-    id("org.jetbrains.kotlin.plugin.serialization")
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.plugin.serialization)
 }
 
 android {
@@ -30,21 +30,16 @@ android {
 }
 
 dependencies {
-    val retrofitVersion = rootProject.extra["retrofitVersion"] as String
-    val okhttpVersion = rootProject.extra["okhttpVersion"] as String
-    val datastoreVersion = rootProject.extra["datastoreVersion"] as String
-    val wearableVersion = rootProject.extra["wearableVersion"] as String
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.kotlinx.serialization)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging.interceptor)
+    implementation(libs.okhttp.urlconnection)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.datastore.preferences)
+    implementation(libs.security.crypto)
+    implementation(libs.play.services.wearable)
 
-    implementation("com.squareup.retrofit2:retrofit:$retrofitVersion")
-    implementation("com.squareup.retrofit2:converter-kotlinx-serialization:$retrofitVersion")
-    implementation("com.squareup.okhttp3:okhttp:$okhttpVersion")
-    implementation("com.squareup.okhttp3:logging-interceptor:$okhttpVersion")
-    implementation("com.squareup.okhttp3:okhttp-urlconnection:$okhttpVersion")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
-    implementation("androidx.datastore:datastore-preferences:$datastoreVersion")
-    implementation("androidx.security:security-crypto:1.1.0")
-    implementation("com.google.android.gms:play-services-wearable:$wearableVersion")
-
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("com.squareup.okhttp3:mockwebserver:$okhttpVersion")
+    testImplementation(libs.junit)
+    testImplementation(libs.okhttp.mockwebserver)
 }

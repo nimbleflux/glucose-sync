@@ -43,8 +43,6 @@ fun GlucoseScreen(
     error: String?,
     refreshError: String?,
     history: List<GlucoseHistoryPoint>,
-    timeInRange: Int,
-    averageGlucose: Double?,
     highThreshold: Double,
     lowThreshold: Double,
     showWearInstallBanner: Boolean,
@@ -155,7 +153,7 @@ fun GlucoseScreen(
                     val displayGlucose = if (unit == "mg/dL") glucose * 18 else glucose
                     ActiveSection(
                         displayGlucose, unit, trend, lastUpdate, history,
-                        highThreshold, lowThreshold, timeInRange, averageGlucose,
+                        highThreshold, lowThreshold,
                         iob, delta, batteryPercent, basalRate, lastBolus, lastBolusTime, remainingDose, alerts,
                         windowHours = windowHours,
                         onWindowHoursChange = onWindowHoursChange
@@ -207,8 +205,6 @@ private fun ActiveSection(
     history: List<GlucoseHistoryPoint>,
     highThreshold: Double,
     lowThreshold: Double,
-    timeInRange: Int,
-    averageGlucose: Double?,
     iob: Double?,
     delta: Double?,
     batteryPercent: Double?,
@@ -231,6 +227,31 @@ private fun ActiveSection(
         glucose > highThreshold -> "HIGH"
         glucose < lowThreshold -> "LOW"
         else -> null
+    }
+
+    // Hoist the window-filtered history so both the chart and the stats
+    // cards below it use the same data set. Stats now reflect what the
+    // user is actually looking at, not the full 24h.
+    val nowSec = System.currentTimeMillis() / 1000
+    val windowedHistory = remember(history, windowHours) {
+        val cutoff = nowSec - windowHours * 3600L
+        history.filter { it.timestamp >= cutoff }
+    }
+    val windowedTIR = if (windowedHistory.isNotEmpty()) {
+        val inRangeCount = windowedHistory.count {
+            val g = if (unit == "mg/dL") it.glucoseMmol * 18 else it.glucoseMmol
+            g >= lowThreshold && g <= highThreshold
+        }
+        inRangeCount * 100 / windowedHistory.size
+    } else 0
+    val windowedAvg = windowedHistory.takeIf { it.isNotEmpty() }
+        ?.map { if (unit == "mg/dL") it.glucoseMmol * 18 else it.glucoseMmol }
+        ?.average()
+    val windowedHigh = windowedHistory.maxOfOrNull {
+        if (unit == "mg/dL") it.glucoseMmol * 18 else it.glucoseMmol
+    }
+    val windowedLow = windowedHistory.minOfOrNull {
+        if (unit == "mg/dL") it.glucoseMmol * 18 else it.glucoseMmol
     }
 
     Surface(
@@ -332,13 +353,6 @@ private fun ActiveSection(
                 }
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Filter history to the selected window for the chart + a11y stats.
-                val nowSec = System.currentTimeMillis() / 1000
-                val windowedHistory = remember(history, windowHours) {
-                    val cutoff = nowSec - windowHours * 3600L
-                    history.filter { it.timestamp >= cutoff }
-                }
-
                 val chartDescription = if (windowedHistory.size >= 2) {
                     val minV = windowedHistory.minOf { it.glucoseMmol }
                     val maxV = windowedHistory.maxOf { it.glucoseMmol }
@@ -380,21 +394,18 @@ private fun ActiveSection(
     ) {
         StatCard(
             title = stringResource(R.string.stat_time_in_range),
-            value = "$timeInRange%",
+            value = "$windowedTIR%",
             icon = Icons.Filled.TrackChanges,
             modifier = Modifier.weight(1f),
-            highlight = timeInRange >= 70
+            highlight = windowedTIR >= 70
         )
         StatCard(
             title = stringResource(R.string.stat_average),
-            value = if (averageGlucose != null) String.format("%.1f", averageGlucose) else "--",
+            value = if (windowedAvg != null) String.format("%.1f", windowedAvg) else "--",
             icon = Icons.Filled.Speed,
             modifier = Modifier.weight(1f)
         )
     }
-
-    val historyHigh = history.maxOfOrNull { it.glucoseMmol }
-    val historyLow = history.minOfOrNull { it.glucoseMmol }
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
@@ -402,13 +413,13 @@ private fun ActiveSection(
     ) {
         StatCard(
             title = stringResource(R.string.stat_high),
-            value = if (historyHigh != null) String.format("%.1f", historyHigh) else "--",
+            value = if (windowedHigh != null) String.format("%.1f", windowedHigh) else "--",
             icon = Icons.Filled.ArrowUpward,
             modifier = Modifier.weight(1f)
         )
         StatCard(
             title = stringResource(R.string.stat_low),
-            value = if (historyLow != null) String.format("%.1f", historyLow) else "--",
+            value = if (windowedLow != null) String.format("%.1f", windowedLow) else "--",
             icon = Icons.Filled.ArrowDownward,
             modifier = Modifier.weight(1f)
         )

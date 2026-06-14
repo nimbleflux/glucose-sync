@@ -39,7 +39,12 @@ class MainActivity : ComponentActivity() {
             val notificationLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestPermission()
             ) { granted ->
-                if (granted && state.isLoggedIn) {
+                // Start the FGS regardless of the user's choice. A foreground
+                // service can run without POST_NOTIFICATIONS - it just won't
+                // be able to show alerts. The user gets an in-app banner
+                // (see GlucoseScreen) explaining the situation and offering
+                // a retry. Previously, denial broke polling entirely.
+                if (state.isLoggedIn) {
                     startPollingService(context)
                 }
             }
@@ -50,9 +55,10 @@ class MainActivity : ComponentActivity() {
                         val hasPermission = ContextCompat.checkSelfPermission(
                             context, Manifest.permission.POST_NOTIFICATIONS
                         ) == PackageManager.PERMISSION_GRANTED
-                        if (hasPermission) {
-                            startPollingService(context)
-                        } else {
+                        // Always start the FGS; if permission is missing,
+                        // request it as well so the banner can offer a retry.
+                        startPollingService(context)
+                        if (!hasPermission) {
                             notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                     } else {
@@ -138,8 +144,6 @@ class MainActivity : ComponentActivity() {
                             error = state.error,
                             refreshError = state.refreshError,
                             history = state.historyDisplay,
-                            timeInRange = state.timeInRange,
-                            averageGlucose = state.averageGlucose,
                             highThreshold = state.highThreshold,
                             lowThreshold = state.lowThreshold,
                             showWearInstallBanner = state.watchPaired && !state.wearAppInstalled && !state.wearBannerDismissed,

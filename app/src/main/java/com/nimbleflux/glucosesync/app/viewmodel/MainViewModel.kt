@@ -83,21 +83,6 @@ data class MainUiState(
     val highThreshold: Double get() = if (glucoseUnit == "mg/dL") highThresholdMmol * 18 else highThresholdMmol
     val lowThreshold: Double get() = if (glucoseUnit == "mg/dL") lowThresholdMmol * 18 else lowThresholdMmol
 
-    val timeInRange: Int get() {
-        if (history.isEmpty()) return 0
-        val inRange = history.count {
-            val g = if (glucoseUnit == "mg/dL") it.glucoseMmol * 18 else it.glucoseMmol
-            g >= lowThreshold && g <= highThreshold
-        }
-        return inRange * 100 / history.size
-    }
-
-    val averageGlucose: Double? get() {
-        if (history.isEmpty()) return null
-        val avg = history.map { it.glucoseMmol }.average()
-        return if (glucoseUnit == "mg/dL") avg * 18 else avg
-    }
-
     val historyDisplay: List<GlucoseHistoryPoint>
         get() = history.map {
             GlucoseHistoryPoint(it.timestamp, if (glucoseUnit == "mg/dL") it.glucoseMmol * 18 else it.glucoseMmol)
