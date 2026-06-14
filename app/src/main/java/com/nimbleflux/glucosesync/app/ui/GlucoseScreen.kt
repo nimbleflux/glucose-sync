@@ -662,12 +662,12 @@ private fun WearInstallBanner(onInstall: () -> Unit, onDismiss: () -> Unit) {
             }
             IconButton(
                 onClick = onDismiss,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     Icons.Filled.Close,
                     contentDescription = stringResource(R.string.content_desc_dismiss),
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(20.dp),
                     tint = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.6f)
                 )
             }

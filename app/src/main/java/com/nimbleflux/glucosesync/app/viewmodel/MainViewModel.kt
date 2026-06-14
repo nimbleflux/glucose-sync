@@ -138,6 +138,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val vibrateDuration = settingsStore.getAlertVibrateDuration()
             val themeMode = settingsStore.getThemeMode()
             val deltaMinutes = settingsStore.getDeltaMinutes()
+            val wearBannerDismissed = settingsStore.getWearBannerDismissed()
             _uiState.update {
                 it.copy(
                     glucoseUnit = unit,
@@ -151,6 +152,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     alertVibrateDuration = vibrateDuration,
                     themeMode = themeMode,
                     deltaMinutes = deltaMinutes,
+                    wearBannerDismissed = wearBannerDismissed,
                     settingsLoaded = true
                 )
             }
@@ -535,6 +537,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissWearBanner() {
         _uiState.update { it.copy(wearBannerDismissed = true) }
+        viewModelScope.launch { settingsStore.setWearBannerDismissed(true) }
     }
 
     fun logout() {

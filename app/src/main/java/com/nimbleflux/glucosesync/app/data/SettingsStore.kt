@@ -101,4 +101,10 @@ class SettingsStore(context: Context) {
     suspend fun setDeltaMinutes(minutes: Int) {
         prefs.edit().putInt("delta_minutes", minutes).apply()
     }
+
+    fun getWearBannerDismissed(): Boolean = prefs.getBoolean("wear_banner_dismissed", false)
+
+    suspend fun setWearBannerDismissed(dismissed: Boolean) {
+        prefs.edit().putBoolean("wear_banner_dismissed", dismissed).apply()
+    }
 }
