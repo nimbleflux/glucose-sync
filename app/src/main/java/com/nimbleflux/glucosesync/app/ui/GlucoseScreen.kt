@@ -290,20 +290,20 @@ private fun ActiveSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
-                if (stateLabel != null) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = glucoseColor,
-                        modifier = Modifier.padding(bottom = 14.dp)
-                    ) {
-                        Text(
-                            text = stateLabel,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onError,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
-                    }
+            }
+
+            if (stateLabel != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = glucoseColor
+                ) {
+                    Text(
+                        text = stateLabel,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onError,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                    )
                 }
             }
 
