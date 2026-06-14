@@ -6,6 +6,7 @@ import com.nimbleflux.glucosesync.shared.api.model.*
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
 import com.nimbleflux.glucosesync.shared.data.Credentials
 import com.nimbleflux.glucosesync.shared.domain.AlertEntry
+import com.nimbleflux.glucosesync.shared.domain.GlucoseAggregator
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
 import com.nimbleflux.glucosesync.shared.domain.TrendArrow
@@ -155,7 +156,14 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
                 val delta = if (history.size >= 2) {
                     history.last().glucoseMmol - history[history.size - 2].glucoseMmol
                 } else null
-                val trend = computeTrend(delta)
+                val rate = GlucoseAggregator.computeRatePerMinute(history)
+                val trend = if (rate != null) {
+                    TrendArrow.fromRate(rate)
+                } else if (delta != null) {
+                    TrendArrow.fromDelta(delta)
+                } else {
+                    TrendArrow.UNKNOWN
+                }
                 val pump = response.data.pump_status
 
                 val timeInRange = if (history.isNotEmpty()) {
@@ -223,11 +231,6 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
             } else null
         }.distinctBy { it.timestamp }.sortedBy { it.timestamp }
         return SgParseResult(history)
-    }
-
-    private fun computeTrend(delta: Double?): TrendArrow {
-        if (delta != null) return TrendArrow.fromDelta(delta)
-        return TrendArrow.UNKNOWN
     }
 
     private fun parseAlerts(

@@ -183,4 +183,86 @@ class GlucoseAggregatorTest {
             GlucoseAggregator.resolveTrend(TrendArrow.UNKNOWN, computedDelta = -2.5)
         )
     }
+
+    @Test
+    fun resolveTrend_unknownWithNullDeltaAndNullRate_yieldsStable() {
+        assertEquals(
+            TrendArrow.STABLE,
+            GlucoseAggregator.resolveTrend(TrendArrow.UNKNOWN)
+        )
+    }
+
+    @Test
+    fun resolveTrend_prefersRateOverDeltaWhenBothProvided() {
+        // delta alone would yield RISING (1.5 > 1.0); rate alone yields RISING_RAPIDLY (>0.10)
+        // 0.12 rate over 5 minutes => 0.6 mmol/L delta, but rate-based wins
+        assertEquals(
+            TrendArrow.RISING_RAPIDLY,
+            GlucoseAggregator.resolveTrend(
+                snapshotTrend = TrendArrow.UNKNOWN,
+                computedDelta = 0.6,
+                computedRate = 0.12
+            )
+        )
+    }
+
+    @Test
+    fun resolveTrend_fallsBackToDeltaWhenRateIsNull() {
+        assertEquals(
+            TrendArrow.RISING,
+            GlucoseAggregator.resolveTrend(
+                snapshotTrend = TrendArrow.UNKNOWN,
+                computedDelta = 1.5,
+                computedRate = null
+            )
+        )
+    }
+
+    @Test
+    fun computeRatePerMinute_returnsNullForEmptyHistory() {
+        assertNull(GlucoseAggregator.computeRatePerMinute(emptyList()))
+    }
+
+    @Test
+    fun computeRatePerMinute_returnsNullForSinglePoint() {
+        assertNull(GlucoseAggregator.computeRatePerMinute(
+            listOf(GlucoseHistoryPoint(timestamp = 1_000L, glucoseMmol = 5.0))
+        ))
+    }
+
+    @Test
+    fun computeRatePerMinute_returnsNullForIdenticalTimestamps() {
+        val history = listOf(
+            GlucoseHistoryPoint(timestamp = 1_000L, glucoseMmol = 5.0),
+            GlucoseHistoryPoint(timestamp = 1_000L, glucoseMmol = 6.0)
+        )
+        assertNull(GlucoseAggregator.computeRatePerMinute(history))
+    }
+
+    @Test
+    fun computeRatePerMinute_oneMinuteSpacing_returnsRawDelta() {
+        val history = listOf(
+            GlucoseHistoryPoint(timestamp = 0L, glucoseMmol = 5.0),
+            GlucoseHistoryPoint(timestamp = 60L, glucoseMmol = 5.5) // +0.5 over 1 min
+        )
+        assertEquals(0.5, GlucoseAggregator.computeRatePerMinute(history)!!, 0.0001)
+    }
+
+    @Test
+    fun computeRatePerMinute_fiveMinuteSpacing_normalisesToPerMinute() {
+        val history = listOf(
+            GlucoseHistoryPoint(timestamp = 0L, glucoseMmol = 5.0),
+            GlucoseHistoryPoint(timestamp = 300L, glucoseMmol = 7.5) // +2.5 over 5 min => 0.5/min
+        )
+        assertEquals(0.5, GlucoseAggregator.computeRatePerMinute(history)!!, 0.0001)
+    }
+
+    @Test
+    fun computeRatePerMinute_supportsNegativeRate() {
+        val history = listOf(
+            GlucoseHistoryPoint(timestamp = 0L, glucoseMmol = 7.0),
+            GlucoseHistoryPoint(timestamp = 60L, glucoseMmol = 6.0) // -1.0 over 1 min
+        )
+        assertEquals(-1.0, GlucoseAggregator.computeRatePerMinute(history)!!, 0.0001)
+    }
 }
