@@ -206,34 +206,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             val creds = ProviderCredentials.UsernamePassword(username, password, baseUrl)
-            try {
-                val session = p.login(creds).getOrThrow()
-                credentialStore.saveSelectedProvider(p.id)
-                credentialStore.saveSessionDisplayName(session.displayName)
+            performLogin(p, creds)
+        }
+    }
 
-                val connections = fetchConnectionsForProvider(p)
-                when {
-                    connections == null -> {
-                        _uiState.update {
-                            it.copy(isLoggedIn = true, isLoading = false, realname = session.displayName)
-                        }
-                        refreshGlucose()
+    fun loginWithToken(url: String, token: String) {
+        val p = provider ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            val creds = ProviderCredentials.ApiToken(url, token)
+            performLogin(p, creds)
+        }
+    }
+
+    private suspend fun performLogin(p: GlucoseProvider, creds: ProviderCredentials) {
+        try {
+            val session = p.login(creds).getOrThrow()
+            credentialStore.saveSelectedProvider(p.id)
+            credentialStore.saveSessionDisplayName(session.displayName)
+
+            val connections = fetchConnectionsForProvider(p)
+            when {
+                connections == null -> {
+                    _uiState.update {
+                        it.copy(isLoggedIn = true, isLoading = false, realname = session.displayName)
                     }
-                    connections.isEmpty() -> {
-                        _uiState.update { it.copy(isLoading = false, error = "No patients found") }
-                    }
-                    connections.size == 1 -> selectSinglePatient(session.displayName, connections[0])
-                    else -> showPatientPicker(connections)
+                    refreshGlucose()
                 }
-            } catch (e: GlucoseError) {
-                _uiState.update { it.copy(isLoading = false, error = e.message) }
-            } catch (e: Exception) {
-                val msg = when {
-                    e.message?.contains("Unable to resolve") == true -> "No internet connection"
-                    else -> e.message ?: "Something went wrong"
+                connections.isEmpty() -> {
+                    _uiState.update { it.copy(isLoading = false, error = "No patients found") }
                 }
-                _uiState.update { it.copy(isLoading = false, error = msg) }
+                connections.size == 1 -> selectSinglePatient(session.displayName, connections[0])
+                else -> showPatientPicker(connections)
             }
+        } catch (e: GlucoseError) {
+            _uiState.update { it.copy(isLoading = false, error = e.message) }
+        } catch (e: Exception) {
+            val msg = when {
+                e.message?.contains("Unable to resolve") == true -> "No internet connection"
+                else -> e.message ?: "Something went wrong"
+            }
+            _uiState.update { it.copy(isLoading = false, error = msg) }
         }
     }
 

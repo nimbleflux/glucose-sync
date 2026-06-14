@@ -49,6 +49,8 @@ class CredentialStore(context: Context) {
         const val MEDTRUM_PATIENT_NAME = "medtrum_patient_name"
         const val MEDTRUM_USER_TYPE = "medtrum_user_type"
         const val MEDTRUM_COOKIES = "medtrum_cookies"
+        const val NIGHTSCOUT_URL = "nightscout_url"
+        const val NIGHTSCOUT_TOKEN = "nightscout_token"
     }
 
     suspend fun saveCredentials(creds: Credentials) {
@@ -177,4 +179,15 @@ class CredentialStore(context: Context) {
     fun clearMedtrumCookies() {
         prefs.edit().remove(Keys.MEDTRUM_COOKIES).apply()
     }
+
+    fun saveNightscoutSession(url: String, token: String) {
+        prefs.edit()
+            .putString(Keys.NIGHTSCOUT_URL, url)
+            .putString(Keys.NIGHTSCOUT_TOKEN, token)
+            .apply()
+    }
+
+    fun getNightscoutUrl(): String? = prefs.getString(Keys.NIGHTSCOUT_URL, null)
+
+    fun getNightscoutToken(): String? = prefs.getString(Keys.NIGHTSCOUT_TOKEN, null)
 }

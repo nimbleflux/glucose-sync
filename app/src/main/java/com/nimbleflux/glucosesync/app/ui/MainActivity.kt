@@ -164,6 +164,7 @@ class MainActivity : ComponentActivity() {
                             providerId = state.selectedProviderId!!,
                             authType = config?.authType ?: com.nimbleflux.glucosesync.shared.provider.AuthType.USERNAME_PASSWORD,
                             onLogin = { u, p, b -> viewModel.login(u, p, b) },
+                            onTokenLogin = { url, token -> viewModel.loginWithToken(url, token) },
                             onDemoLogin = { viewModel.loginDemo() },
                             onBack = { viewModel.logout() },
                             isLoading = state.isLoading,

@@ -3,6 +3,7 @@ package com.nimbleflux.glucosesync.shared.provider
 import android.content.Context
 import com.nimbleflux.glucosesync.shared.provider.libre.LibreLinkUpProvider
 import com.nimbleflux.glucosesync.shared.provider.medtrum.MedtrumProvider
+import com.nimbleflux.glucosesync.shared.provider.nightscout.NightscoutProvider
 
 object ProviderRegistry {
 
@@ -28,7 +29,7 @@ object ProviderRegistry {
             displayName = "Nightscout",
             description = "Connect to your self-hosted Nightscout",
             authType = AuthType.API_TOKEN,
-            available = false,
+            available = true,
             icon = "\uD83C\uDF10"
         ),
         ProviderConfig(
@@ -57,6 +58,7 @@ object ProviderRegistry {
         return when (id) {
             "medtrum" -> MedtrumProvider(context, debug)
             "libre_linkup" -> LibreLinkUpProvider(context, debug)
+            "nightscout" -> NightscoutProvider(context, debug)
             else -> throw IllegalArgumentException("Unknown provider: $id")
         }
     }

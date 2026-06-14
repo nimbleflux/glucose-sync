@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -37,12 +38,16 @@ fun LoginScreen(
     onDemoLogin: () -> Unit,
     onBack: () -> Unit,
     isLoading: Boolean,
-    error: String?
+    error: String?,
+    onTokenLogin: (url: String, token: String) -> Unit = { _, _ -> }
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var selectedRegion by remember { mutableIntStateOf(0) }
+    var siteUrl by remember { mutableStateOf("") }
+    var apiToken by remember { mutableStateOf("") }
+    var tokenVisible by remember { mutableStateOf(false) }
 
     val regions = when (providerId) {
         "libre_linkup" -> LibreRegions.all.map { it.displayName to it.url }
@@ -245,6 +250,119 @@ fun LoginScreen(
                     Button(
                         onClick = { onLogin(username, password, regions[selectedRegion].second) },
                         enabled = username.isNotBlank() && password.isNotBlank() && !isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = MaterialTheme.shapes.large,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                        }
+                        Text(
+                            stringResource(R.string.sign_in),
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
+                }
+                AuthType.API_TOKEN -> {
+                    OutlinedTextField(
+                        value = siteUrl,
+                        onValueChange = { siteUrl = it.trim() },
+                        label = { Text(stringResource(R.string.field_site_url)) },
+                        leadingIcon = { Icon(Icons.Outlined.Language, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Uri,
+                            capitalization = KeyboardCapitalization.None
+                        ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = apiToken,
+                        onValueChange = { apiToken = it },
+                        label = { Text(stringResource(R.string.field_api_token)) },
+                        leadingIcon = { Icon(Icons.Filled.VpnKey, contentDescription = null) },
+                        trailingIcon = {
+                            IconButton(onClick = { tokenVisible = !tokenVisible }) {
+                                Icon(
+                                    if (tokenVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                    contentDescription = if (tokenVisible)
+                                        stringResource(R.string.content_desc_hide_password)
+                                    else stringResource(R.string.content_desc_show_password),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        visualTransformation = if (tokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    AnimatedVisibility(
+                        visible = error != null,
+                        enter = fadeIn(),
+                        exit = fadeOut()
+                    ) {
+                        if (error != null) {
+                            Column {
+                                Surface(
+                                    shape = MaterialTheme.shapes.medium,
+                                    color = MaterialTheme.colorScheme.errorContainer,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.ErrorOutline,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = error,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = { onTokenLogin(siteUrl, apiToken) },
+                        enabled = siteUrl.isNotBlank() && apiToken.isNotBlank() && !isLoading,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp),
