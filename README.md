@@ -46,9 +46,25 @@
 |----------|--------|-------|
 | **Medtrum** | Supported | CGM + pump data, carer monitoring |
 | **LibreLinkUp** | Supported | Multi-patient, region-aware |
-| **Nightscout** | Planned | |
+| **Nightscout** | Supported | Self-hosted, API token auth |
 | **Dexcom** | Planned | |
 | **xDrip+** | Planned | |
+
+> **⚠️ Important: GlucoseSync is a companion app, not a standalone CGM.**
+> It does not read sensor data directly from your CGM hardware. It fetches
+> glucose data from each manufacturer's cloud service (e.g. the Medtrum
+> cloud, LibreLinkUp servers, or your own Nightscout site). This means:
+> - **The manufacturer's app must be installed and active** on a phone
+>   paired with the sensor, uploading readings to the cloud.
+> - **An internet connection is required** on both the phone running
+>   GlucoseSync and the phone running the manufacturer's app.
+> - **GlucoseSync stops receiving data** if the manufacturer's cloud
+>   goes down, the sensor app stops uploading, or either phone loses
+>   connectivity.
+>
+> GlucoseSync enhances how you view and interact with your CGM data
+> (wear OS complications, custom alerts, multi-patient monitoring) but
+> it is always dependent on the upstream cloud infrastructure.
 
 ## Architecture
 
