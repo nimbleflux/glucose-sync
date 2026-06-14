@@ -100,6 +100,14 @@
     <string name="alert_threshold_text">%1$.1f %2$s — %3$s threshold of %4$.1f</string>
     <string name="alert_stale_title">No recent readings</string>
     <string name="alert_stale_text">No glucose reading for %1$d minutes. Check your sensor and phone connection.</string>
+    <string name="error_no_patients">No patients found</string>
+    <string name="error_no_internet">No internet connection</string>
+    <string name="error_no_sensor">No active sensor</string>
+    <string name="error_something_wrong">Something went wrong</string>
+    <string name="error_auth_expired">Authentication expired. Try signing in again.</string>
+    <string name="error_could_not_fetch">Could not fetch data</string>
+    <string name="state_high">HIGH</string>
+    <string name="state_low">LOW</string>
     <string name="notification_channel_alert">Glucose alert</string>
     <string name="notification_channel_alert_desc">Glucose threshold alerts</string>
     <string name="notification_channel_stale">Stale data</string>
@@ -107,6 +115,9 @@
 
     <string name="wear_app_not_installed">Watch app not detected</string>
     <string name="wear_app_not_installed_desc">Open the Play Store on your watch and search for GlucoseSync to install it.</string>
+    <string name="notifications_blocked_title">Notifications are blocked</string>
+    <string name="notifications_blocked_desc">Glucose alerts won\'t fire until you grant notification permission.</string>
+    <string name="notifications_blocked_action">Grant</string>
     <string name="wear_install_button">Open Play Store</string>
 
     <string name="settings_theme">Theme</string>

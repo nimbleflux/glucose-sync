@@ -46,6 +46,8 @@ fun GlucoseScreen(
     highThreshold: Double,
     lowThreshold: Double,
     showWearInstallBanner: Boolean,
+    notificationsDenied: Boolean = false,
+    onRequestNotificationPermission: () -> Unit = {},
     iob: Double?,
     delta: Double?,
     batteryPercent: Double?,
@@ -131,10 +133,15 @@ fun GlucoseScreen(
 
                 UserInfoRow(realname, isDemo)
 
-                if (showWearInstallBanner) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    WearInstallBanner(onInstall = onInstallWearApp, onDismiss = onDismissWearBanner)
-                }
+            if (showWearInstallBanner) {
+                Spacer(modifier = Modifier.height(8.dp))
+                WearInstallBanner(onInstall = onInstallWearApp, onDismiss = onDismissWearBanner)
+            }
+
+            if (notificationsDenied) {
+                Spacer(modifier = Modifier.height(8.dp))
+                NotificationDeniedBanner(onGrant = onRequestNotificationPermission)
+            }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -224,8 +231,8 @@ private fun ActiveSection(
         else -> MaterialTheme.colorScheme.tertiary
     }
     val stateLabel = when {
-        glucose > highThreshold -> "HIGH"
-        glucose < lowThreshold -> "LOW"
+        glucose > highThreshold -> stringResource(R.string.state_high)
+        glucose < lowThreshold -> stringResource(R.string.state_low)
         else -> null
     }
 
@@ -717,6 +724,50 @@ private fun TimeRangeSelector(
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationDeniedBanner(onGrant: () -> Unit) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.errorContainer,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Filled.NotificationsOff,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.notifications_blocked_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+                Text(
+                    stringResource(R.string.notifications_blocked_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            FilledTonalButton(
+                onClick = onGrant,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    stringResource(R.string.notifications_blocked_action),
+                    style = MaterialTheme.typography.labelSmall
                 )
             }
         }

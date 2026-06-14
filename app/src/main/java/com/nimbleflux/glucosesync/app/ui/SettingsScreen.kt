@@ -258,28 +258,6 @@ fun SettingsScreen(
                                 }
                             )
                         }
-
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                            val hasFsiAccess = remember(resumeTick, settingsLoaded) {
-                                nm.canUseFullScreenIntent()
-                            }
-                            if (!hasFsiAccess) {
-                                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                                PermissionWarning(
-                                    title = stringResource(R.string.settings_fullscreen_missing),
-                                    description = stringResource(R.string.settings_fullscreen_missing_desc),
-                                    onGrant = {
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                                            context.startActivity(
-                                                Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
-                                                    data = android.net.Uri.parse("package:${context.packageName}")
-                                                }
-                                            )
-                                        }
-                                    }
-                                )
-                            }
-                        }
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))

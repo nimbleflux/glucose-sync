@@ -10,6 +10,8 @@ import com.nimbleflux.glucosesync.shared.data.CredentialStore
 import com.nimbleflux.glucosesync.shared.domain.GlucoseAggregator
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 import com.nimbleflux.glucosesync.shared.provider.GlucoseError
 import com.nimbleflux.glucosesync.shared.provider.GlucoseProvider
 import com.nimbleflux.glucosesync.shared.provider.ProviderRegistry
@@ -61,6 +63,7 @@ class GlucosePollingService : android.app.Service() {
         coordinator = com.nimbleflux.glucosesync.app.domain.GlucoseCoordinator(this, settingsStore)
         Wearable.getMessageClient(this).addListener(messageListener)
         PollingWorker.schedule(this)
+        restoreHistory()
     }
 
     override fun onBind(intent: Intent?): android.os.IBinder? = null
@@ -179,6 +182,7 @@ class GlucosePollingService : android.app.Service() {
 
                         accumulatedHistory.clear()
                         accumulatedHistory.addAll(processed.history)
+                        saveHistory()
 
                         lastGlucose = glucose
                         lastTrend = processed.trend.symbol
@@ -246,6 +250,33 @@ class GlucosePollingService : android.app.Service() {
                     alertsEnabled = alertsEnabled
                 )
             }
+        }
+    }
+
+    private fun saveHistory() {
+        try {
+            val serializer = ListSerializer(GlucoseHistoryPoint.serializer())
+            val raw = Json.encodeToString(serializer, accumulatedHistory.toList())
+            getSharedPreferences("polling_state", MODE_PRIVATE)
+                .edit()
+                .putString("accumulated_history", raw)
+                .apply()
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) Log.w(TAG, "Could not persist history: ${e.message}")
+        }
+    }
+
+    private fun restoreHistory() {
+        try {
+            val raw = getSharedPreferences("polling_state", MODE_PRIVATE)
+                .getString("accumulated_history", null) ?: return
+            val serializer = ListSerializer(GlucoseHistoryPoint.serializer())
+            val restored = Json.decodeFromString(serializer, raw)
+            val cutoff = System.currentTimeMillis() / 1000 - 86_400L
+            accumulatedHistory.addAll(restored.filter { it.timestamp >= cutoff })
+            if (BuildConfig.DEBUG) Log.d(TAG, "Restored ${accumulatedHistory.size} history points from prefs")
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) Log.w(TAG, "Could not restore history: ${e.message}")
         }
     }
 

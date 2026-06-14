@@ -66,5 +66,6 @@ dependencies {
     implementation(libs.security.crypto)
     implementation(libs.work.runtime.ktx)
     implementation(libs.play.services.wearable)
+    implementation(libs.kotlinx.serialization.json)
     debugImplementation(libs.compose.ui.tooling)
 }
