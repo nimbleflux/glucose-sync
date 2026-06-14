@@ -3,9 +3,12 @@ package com.nimbleflux.glucosesync.app.viewmodel
 import android.app.Application
 import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import com.nimbleflux.glucosesync.app.BuildConfig
 import com.nimbleflux.glucosesync.app.data.SettingsStore
+import com.nimbleflux.glucosesync.app.domain.GlucoseCoordinator
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
 import com.nimbleflux.glucosesync.shared.domain.DemoData
 import com.nimbleflux.glucosesync.shared.domain.AlertEntry
@@ -18,8 +21,6 @@ import com.nimbleflux.glucosesync.shared.provider.GlucoseError
 import com.nimbleflux.glucosesync.shared.provider.GlucoseProvider
 import com.nimbleflux.glucosesync.shared.provider.ProviderCredentials
 import com.nimbleflux.glucosesync.shared.provider.ProviderRegistry
-import com.nimbleflux.glucosesync.shared.wear.WatchPayload
-import com.nimbleflux.glucosesync.shared.wear.WatchPayloadCodec
 import com.nimbleflux.glucosesync.app.ui.PatientInfo
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.CapabilityInfo
@@ -104,6 +105,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val credentialStore = CredentialStore(application)
     private val settingsStore = SettingsStore(application)
+    private val coordinator = GlucoseCoordinator(application, settingsStore)
     private var provider: GlucoseProvider? = null
 
     private val _uiState = MutableStateFlow(MainUiState())
@@ -340,7 +342,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         snapshot.glucose?.let { _ ->
-            syncToWatch(snapshot)
+            coordinator.pushToWatch(snapshot, trimmed, snapshot.trend.symbol, snapshot.delta)
         }
     }
 
@@ -349,7 +351,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         autoRefreshJob = viewModelScope.launch {
             while (true) {
                 delay(60_000)
-                if (_uiState.value.isLoggedIn && !_uiState.value.isDemo) {
+                // Skip when the app is backgrounded - the foreground service
+                // (5 min loop) keeps alerts flowing without burning battery
+                // on UI refreshes nobody sees.
+                val inForeground = ProcessLifecycleOwner.get()
+                    .lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                if (inForeground && _uiState.value.isLoggedIn && !_uiState.value.isDemo) {
                     refreshGlucose()
                 }
             }
@@ -375,35 +382,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             refreshMutex.withLock {
                 _uiState.update { it.copy(isLoading = true, error = null) }
-                p.fetchGlucose()
-                    .onSuccess { snapshot ->
-                        val history = if (snapshot.history.isNotEmpty()) {
-                            GlucoseAggregator.trimTo24h(
-                                GlucoseAggregator.mergeHistory(_uiState.value.history, snapshot.history)
-                            )
-                        } else {
-                            val currentHistory = _uiState.value.history.toMutableList()
-                            val g = snapshot.glucose
-                            if (g != null && snapshot.sensorActive) {
-                                currentHistory.add(GlucoseHistoryPoint(snapshot.timestamp, g))
-                            }
-                            GlucoseAggregator.trimTo24h(currentHistory)
-                        }
-
+                coordinator.fetchAndProcess(p, _uiState.value.history)
+                    .onSuccess { processed ->
+                        val snapshot = processed.snapshot
                         _uiState.update {
-                            val deltaMin = it.deltaMinutes
-                            val computedDelta = GlucoseAggregator.computeDelta(history, deltaMin) ?: snapshot.delta
-                            val trend = GlucoseAggregator.resolveTrend(snapshot.trend, computedDelta)
                             it.copy(
                                 isLoading = false,
                                 glucose = snapshot.glucose,
                                 lastUpdate = snapshot.timestamp,
                                 sensorActive = snapshot.sensorActive,
-                                trend = trend.symbol,
+                                trend = processed.trend.symbol,
                                 error = if (!snapshot.sensorActive) "No active sensor" else null,
-                                history = history,
+                                history = processed.history,
                                 iob = snapshot.iob,
-                                delta = computedDelta,
+                                delta = processed.delta,
                                 batteryPercent = snapshot.batteryPercent,
                                 basalRate = snapshot.basalRate,
                                 lastBolus = snapshot.lastBolus,
@@ -412,9 +404,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 alerts = snapshot.alerts
                             )
                         }
-                        snapshot.glucose?.let { _ ->
-                            syncToWatch(snapshot)
-                        }
+                        // Alerts intentionally NOT fired from the VM loop.
+                        // The foreground service's 5-min cycle is the single
+                        // alerter - that matches the underlying CGM sensor
+                        // update rate (Dexcom 5 min, Libre 1 min but alert
+                        // windows are typically wider) and avoids hammering
+                        // the provider API or duplicating alerts.
                     }
                     .onFailure { e ->
                         val msg = when (e) {
@@ -529,37 +524,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun syncToWatch(snapshot: GlucoseSnapshot) {
-        try {
-            val glucose = snapshot.glucose ?: return
-            val trendSymbol = _uiState.value.trend.ifEmpty { snapshot.trend.symbol }
-            val delta = _uiState.value.delta ?: snapshot.delta
-            val payload = WatchPayload(
-                glucose = glucose,
-                timestamp = snapshot.timestamp,
-                trend = trendSymbol,
-                unit = snapshot.unit,
-                iob = snapshot.iob,
-                delta = delta,
-                batteryPercent = snapshot.batteryPercent,
-                basalRate = snapshot.basalRate,
-                lastBolus = snapshot.lastBolus,
-                lastBolusTime = snapshot.lastBolusTime,
-                remainingDose = snapshot.remainingDose,
-                highThreshold = snapshot.highThreshold,
-                lowThreshold = snapshot.lowThreshold,
-                timeInRange = snapshot.timeInRange,
-                averageGlucose = snapshot.averageGlucose,
-                history = GlucoseAggregator.trimHistory(
-                    _uiState.value.history,
-                    WatchPayloadCodec.MAX_HISTORY_AGE_SEC
-                )
-            )
-            val dataClient = Wearable.getDataClient(getApplication<Application>())
-            dataClient.putDataItem(WatchPayloadCodec.toPutDataRequest(payload))
-            _uiState.update { it.copy(wearAppInstalled = true) }
-        } catch (_: Exception) { }
-    }
 
     private val capabilityListener = CapabilityClient.OnCapabilityChangedListener { info ->
         val hasCapability = info.nodes.isNotEmpty()
