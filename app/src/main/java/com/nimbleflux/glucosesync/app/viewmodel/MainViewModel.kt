@@ -63,6 +63,7 @@ data class MainUiState(
     val watchPaired: Boolean = false,
     val wearAppInstalled: Boolean = true,
     val wearBannerDismissed: Boolean = false,
+    val historyWindowHours: Int = 24,
     val themeMode: String = "system",
     val iob: Double? = null,
     val delta: Double? = null,
@@ -139,6 +140,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val themeMode = settingsStore.getThemeMode()
             val deltaMinutes = settingsStore.getDeltaMinutes()
             val wearBannerDismissed = settingsStore.getWearBannerDismissed()
+            val historyWindowHours = settingsStore.getHistoryWindowHours()
             _uiState.update {
                 it.copy(
                     glucoseUnit = unit,
@@ -153,6 +155,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     themeMode = themeMode,
                     deltaMinutes = deltaMinutes,
                     wearBannerDismissed = wearBannerDismissed,
+                    historyWindowHours = historyWindowHours,
                     settingsLoaded = true
                 )
             }
@@ -551,6 +554,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun dismissWearBanner() {
         _uiState.update { it.copy(wearBannerDismissed = true) }
         viewModelScope.launch { settingsStore.setWearBannerDismissed(true) }
+    }
+
+    fun setHistoryWindowHours(hours: Int) {
+        val valid = if (hours in listOf(3, 6, 12, 24)) hours else 24
+        _uiState.update { it.copy(historyWindowHours = valid) }
+        viewModelScope.launch { settingsStore.setHistoryWindowHours(valid) }
     }
 
     fun logout() {

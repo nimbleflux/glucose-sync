@@ -56,6 +56,8 @@ fun GlucoseScreen(
     lastBolusTime: Long?,
     remainingDose: Double?,
     alerts: List<AlertEntry>,
+    windowHours: Int = 24,
+    onWindowHoursChange: (Int) -> Unit = {},
     onRefresh: () -> Unit,
     onSettings: () -> Unit,
     onInstallWearApp: () -> Unit,
@@ -151,9 +153,13 @@ fun GlucoseScreen(
                     }
                 } else if (sensorActive && glucose != null) {
                     val displayGlucose = if (unit == "mg/dL") glucose * 18 else glucose
-                    ActiveSection(displayGlucose, unit, trend, lastUpdate, history,
+                    ActiveSection(
+                        displayGlucose, unit, trend, lastUpdate, history,
                         highThreshold, lowThreshold, timeInRange, averageGlucose,
-                        iob, delta, batteryPercent, basalRate, lastBolus, lastBolusTime, remainingDose, alerts)
+                        iob, delta, batteryPercent, basalRate, lastBolus, lastBolusTime, remainingDose, alerts,
+                        windowHours = windowHours,
+                        onWindowHoursChange = onWindowHoursChange
+                    )
                 } else {
                     InactiveSection(error)
                 }
@@ -210,7 +216,9 @@ private fun ActiveSection(
     lastBolus: Double?,
     lastBolusTime: Long?,
     remainingDose: Double?,
-    alerts: List<AlertEntry>
+    alerts: List<AlertEntry>,
+    windowHours: Int = 24,
+    onWindowHoursChange: (Int) -> Unit = {}
 ) {
     val inRange = glucose in lowThreshold..highThreshold
     val glucoseColor = when {
@@ -307,24 +315,59 @@ private fun ActiveSection(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(stringResource(R.string.history_24h), style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(modifier = Modifier.height(8.dp))
-                val chartDescription = if (history.size >= 2) {
-                    val minV = history.minOf { it.glucoseMmol }
-                    val maxV = history.maxOf { it.glucoseMmol }
-                    val inRangeCount = history.count { it.glucoseMmol in lowThreshold..highThreshold }
-                    val pct = (inRangeCount * 100) / history.size
-                    "24 hour glucose chart. Min ${"%.1f".format(minV)}, max ${"%.1f".format(maxV)}, $pct percent in range."
-                } else {
-                    "24 hour glucose chart. Not enough data yet."
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.history_label),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TimeRangeSelector(
+                        selectedHours = windowHours,
+                        onSelect = onWindowHoursChange
+                    )
                 }
-                GlucoseChart(
-                    history = history,
-                    highThreshold = highThreshold,
-                    lowThreshold = lowThreshold,
-                    modifier = Modifier.semantics { contentDescription = chartDescription }
-                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Filter history to the selected window for the chart + a11y stats.
+                val nowSec = System.currentTimeMillis() / 1000
+                val windowedHistory = remember(history, windowHours) {
+                    val cutoff = nowSec - windowHours * 3600L
+                    history.filter { it.timestamp >= cutoff }
+                }
+
+                val chartDescription = if (windowedHistory.size >= 2) {
+                    val minV = windowedHistory.minOf { it.glucoseMmol }
+                    val maxV = windowedHistory.maxOf { it.glucoseMmol }
+                    val inRangeCount = windowedHistory.count { it.glucoseMmol in lowThreshold..highThreshold }
+                    val pct = (inRangeCount * 100) / windowedHistory.size
+                    "$windowHours hour glucose chart. Min ${"%.1f".format(minV)}, max ${"%.1f".format(maxV)}, $pct percent in range."
+                } else {
+                    "$windowHours hour glucose chart. Not enough data yet."
+                }
+                if (windowedHistory.size >= 2) {
+                    GlucoseChart(
+                        history = windowedHistory,
+                        highThreshold = highThreshold,
+                        lowThreshold = lowThreshold,
+                        windowHours = windowHours,
+                        modifier = Modifier.semantics { contentDescription = chartDescription }
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(120.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            stringResource(R.string.not_enough_data),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                }
             }
         }
     }
@@ -619,6 +662,53 @@ private fun ChecklistRow(text: String) {
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
         Spacer(modifier = Modifier.width(6.dp))
         Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun TimeRangeSelector(
+    selectedHours: Int,
+    onSelect: (Int) -> Unit
+) {
+    val ranges = remember { listOf(3, 6, 12, 24) }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.semantics {
+            contentDescription = "Time range selector, currently $selectedHours hours"
+        }
+    ) {
+        ranges.forEach { hours ->
+            val selected = hours == selectedHours
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerHigh
+                },
+                onClick = { onSelect(hours) },
+                modifier = Modifier.semantics {
+                    if (selected) {
+                        contentDescription = "$hours hours, selected"
+                    } else {
+                        contentDescription = "Show last $hours hours"
+                    }
+                }
+            ) {
+                Text(
+                    text = "${hours}h",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                    ),
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
+        }
     }
 }
 

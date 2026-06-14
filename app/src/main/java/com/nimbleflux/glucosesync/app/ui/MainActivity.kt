@@ -151,6 +151,8 @@ class MainActivity : ComponentActivity() {
                             lastBolusTime = state.lastBolusTime,
                             remainingDose = state.remainingDose,
                             alerts = state.alerts,
+                            windowHours = state.historyWindowHours,
+                            onWindowHoursChange = { viewModel.setHistoryWindowHours(it) },
                             onRefresh = { viewModel.refreshGlucose() },
                             onSettings = { viewModel.showSettings() },
                             onInstallWearApp = { viewModel.openWatchPlayStore() },

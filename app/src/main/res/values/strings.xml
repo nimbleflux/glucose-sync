@@ -11,7 +11,8 @@
     <string name="sign_out">Sign out</string>
     <string name="badge_demo">DEMO</string>
     <string name="updated_at">Updated %s</string>
-    <string name="history_24h">History (24h)</string>
+    <string name="history_label">History</string>
+    <string name="not_enough_data">Not enough data yet for this range</string>
     <string name="stat_time_in_range">Time in range</string>
     <string name="stat_average">Average</string>
     <string name="stat_high">High</string>

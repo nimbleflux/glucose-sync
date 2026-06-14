@@ -46,4 +46,5 @@ dependencies {
     implementation("com.google.android.gms:play-services-wearable:$wearableVersion")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:$okhttpVersion")
 }
