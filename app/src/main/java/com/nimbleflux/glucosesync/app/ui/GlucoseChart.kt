@@ -28,6 +28,7 @@ fun GlucoseChart(
     history: List<GlucoseHistoryPoint>,
     highThreshold: Double,
     lowThreshold: Double,
+    windowHours: Int = 24,
     modifier: Modifier = Modifier
 ) {
     if (history.size < 2) return
@@ -50,7 +51,7 @@ fun GlucoseChart(
     val range = maxVal - minVal
 
     val now = System.currentTimeMillis() / 1000
-    val windowSec = 86400.0
+    val windowSec = (windowHours * 3600).toDouble()
     val earliestData = history.firstOrNull()?.timestamp?.toDouble() ?: (now - windowSec)
     val timeStart = maxOf(now - windowSec, earliestData)
 
@@ -139,7 +140,13 @@ fun GlucoseChart(
             )
         }
 
-        val stepSec = 21600L
+        // Pick a grid step that yields roughly 4-6 labels regardless of window.
+        val stepSec = when (windowHours) {
+            3 -> 1_800L    // 30 min -> 6 labels
+            6 -> 3_600L    // 1 hour -> 6 labels
+            12 -> 10_800L  // 3 hours -> 4 labels
+            else -> 21_600L // 24h -> 6h -> 4 labels
+        }
         val firstLabelTs = ((timeStart.toLong() + stepSec - 1) / stepSec) * stepSec
         var gridTs = firstLabelTs
         while (gridTs < now) {

@@ -113,4 +113,10 @@ class SettingsStore(context: Context) {
     fun setLastStaleAlertTime(epochMs: Long) {
         prefs.edit().putLong("last_stale_alert_time", epochMs).apply()
     }
+
+    fun getHistoryWindowHours(): Int = prefs.getInt("history_window_hours", 24)
+
+    fun setHistoryWindowHours(hours: Int) {
+        prefs.edit().putInt("history_window_hours", hours).apply()
+    }
 }
