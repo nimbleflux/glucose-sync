@@ -254,22 +254,12 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
 
     fun getRealname(): String = realname
 
-    private data class SgParseResult(
+    internal data class SgParseResult(
         val history: List<GlucoseHistoryPoint>
     )
 
-    private fun parseSgHistory(sg: List<kotlinx.serialization.json.JsonElement>): SgParseResult {
-        val history = sg.mapNotNull { element ->
-            val arr = element as? JsonArray ?: return@mapNotNull null
-            if (arr.size < 2) return@mapNotNull null
-            val ts = ((arr[0] as? JsonPrimitive)?.doubleOrNull?.toLong()) ?: return@mapNotNull null
-            val glucose = (arr[1] as? JsonPrimitive)?.doubleOrNull ?: return@mapNotNull null
-            if (ts > 0 && glucose > 0) {
-                GlucoseHistoryPoint(ts, glucose)
-            } else null
-        }.distinctBy { it.timestamp }.sortedBy { it.timestamp }
-        return SgParseResult(history)
-    }
+    internal fun parseSgHistory(sg: List<kotlinx.serialization.json.JsonElement>): SgParseResult =
+        parseSgHistoryStatic(sg)
 
     private fun parseAlerts(
         sensorAlarm: List<kotlinx.serialization.json.JsonElement>,
@@ -325,4 +315,23 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
         val paramJson = """{"ts":[$start,$end],"tz":$tzOffsetSec}"""
         return Base64.encodeToString(paramJson.toByteArray(), Base64.NO_WRAP)
     }
+}
+
+/**
+ * Top-level pure function that parses Medtrum's `sg` JSON array into
+ * [GlucoseHistoryPoint]s. Extracted from [MedtrumProvider.parseSgHistory]
+ * so it can be unit-tested without instantiating the provider (which
+ * requires a Context for CredentialStore).
+ */
+internal fun parseSgHistoryStatic(sg: List<kotlinx.serialization.json.JsonElement>): MedtrumProvider.SgParseResult {
+    val history = sg.mapNotNull { element ->
+        val arr = element as? JsonArray ?: return@mapNotNull null
+        if (arr.size < 2) return@mapNotNull null
+        val ts = ((arr[0] as? JsonPrimitive)?.doubleOrNull?.toLong()) ?: return@mapNotNull null
+        val glucose = (arr[1] as? JsonPrimitive)?.doubleOrNull ?: return@mapNotNull null
+        if (ts > 0 && glucose > 0) {
+            GlucoseHistoryPoint(ts, glucose)
+        } else null
+    }.distinctBy { it.timestamp }.sortedBy { it.timestamp }
+    return MedtrumProvider.SgParseResult(history)
 }

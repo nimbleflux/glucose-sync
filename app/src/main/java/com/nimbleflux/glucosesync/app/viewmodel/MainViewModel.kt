@@ -7,6 +7,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import com.nimbleflux.glucosesync.app.BuildConfig
+import com.nimbleflux.glucosesync.app.R
 import com.nimbleflux.glucosesync.app.data.SettingsStore
 import com.nimbleflux.glucosesync.app.domain.GlucoseCoordinator
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
@@ -221,9 +222,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     refreshGlucose()
                 }
-                connections.isEmpty() -> {
-                    _uiState.update { it.copy(isLoading = false, error = "No patients found") }
-                }
+                    connections.isEmpty() -> {
+                        _uiState.update { it.copy(isLoading = false, error = getApplication<Application>().getString(R.string.error_no_patients)) }
+                    }
                 connections.size == 1 -> selectSinglePatient(session.displayName, connections[0])
                 else -> showPatientPicker(connections)
             }
@@ -408,7 +409,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 lastUpdate = snapshot.timestamp,
                                 sensorActive = snapshot.sensorActive,
                                 trend = processed.trend.symbol,
-                                error = if (!snapshot.sensorActive) "No active sensor" else null,
+                                error = if (!snapshot.sensorActive) getApplication<Application>().getString(R.string.error_no_sensor) else null,
                                 history = processed.history,
                                 iob = snapshot.iob,
                                 delta = processed.delta,
@@ -428,13 +429,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         // the provider API or duplicating alerts.
                     }
                     .onFailure { e ->
+                        val app = getApplication<Application>()
                         val msg = when (e) {
-                            is GlucoseError.SessionExpired -> "Authentication expired. Try signing in again."
-                            is GlucoseError.NetworkError -> "No internet connection"
+                            is GlucoseError.SessionExpired -> app.getString(R.string.error_auth_expired)
+                            is GlucoseError.NetworkError -> app.getString(R.string.error_no_internet)
                             is GlucoseError -> e.message
                             else -> when {
-                                e.message?.contains("Unable to resolve") == true -> "No internet connection"
-                                else -> e.message ?: "Could not fetch data"
+                                e.message?.contains("Unable to resolve") == true -> app.getString(R.string.error_no_internet)
+                                else -> e.message ?: app.getString(R.string.error_could_not_fetch)
                             }
                         }
                         // If we already have data on screen, treat this as a

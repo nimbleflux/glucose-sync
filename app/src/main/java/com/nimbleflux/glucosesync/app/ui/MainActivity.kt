@@ -49,6 +49,16 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            // Check POST_NOTIFICATIONS on every recomposition so the banner
+            // disappears the moment the user grants the permission via sys settings.
+            val notificationsDenied = remember(state.isLoggedIn) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.POST_NOTIFICATIONS
+                    ) != PackageManager.PERMISSION_GRANTED
+                } else false
+            }
+
             LaunchedEffect(state.isLoggedIn) {
                 if (state.isLoggedIn && !state.isDemo) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -147,6 +157,12 @@ class MainActivity : ComponentActivity() {
                             highThreshold = state.highThreshold,
                             lowThreshold = state.lowThreshold,
                             showWearInstallBanner = state.watchPaired && !state.wearAppInstalled && !state.wearBannerDismissed,
+                            notificationsDenied = notificationsDenied,
+                            onRequestNotificationPermission = {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            },
                             iob = state.iob,
                             delta = state.delta,
                             batteryPercent = state.batteryPercent,
