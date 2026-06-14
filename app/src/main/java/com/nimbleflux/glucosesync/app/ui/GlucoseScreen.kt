@@ -6,6 +6,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -100,10 +101,6 @@ fun GlucoseScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    IconButton(onClick = onRefresh, enabled = !isLoading && !isRefreshing) {
-                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.content_desc_refresh),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
                     IconButton(onClick = onSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.content_desc_settings),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -116,46 +113,53 @@ fun GlucoseScreen(
         },
         containerColor = MaterialTheme.colorScheme.surface
     ) { padding ->
-        Column(
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
-
-            UserInfoRow(realname, isDemo)
-
-            if (showWearInstallBanner) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Spacer(modifier = Modifier.height(8.dp))
-                WearInstallBanner(onInstall = onInstallWearApp, onDismiss = onDismissWearBanner)
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                UserInfoRow(realname, isDemo)
 
-            if (isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(200.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(32.dp),
-                        strokeWidth = 3.dp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                if (showWearInstallBanner) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    WearInstallBanner(onInstall = onInstallWearApp, onDismiss = onDismissWearBanner)
                 }
-            } else if (sensorActive && glucose != null) {
-                val displayGlucose = if (unit == "mg/dL") glucose * 18 else glucose
-                ActiveSection(displayGlucose, unit, trend, lastUpdate, history,
-                    highThreshold, lowThreshold, timeInRange, averageGlucose,
-                    iob, delta, batteryPercent, basalRate, lastBolus, lastBolusTime, remainingDose, alerts)
-            } else {
-                InactiveSection(error)
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (isLoading) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(32.dp),
+                            strokeWidth = 3.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                } else if (sensorActive && glucose != null) {
+                    val displayGlucose = if (unit == "mg/dL") glucose * 18 else glucose
+                    ActiveSection(displayGlucose, unit, trend, lastUpdate, history,
+                        highThreshold, lowThreshold, timeInRange, averageGlucose,
+                        iob, delta, batteryPercent, basalRate, lastBolus, lastBolusTime, remainingDose, alerts)
+                } else {
+                    InactiveSection(error)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
         }
     }
 }
