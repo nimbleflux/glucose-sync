@@ -41,6 +41,10 @@ class PollingAlarmReceiver : BroadcastReceiver() {
 
         fun scheduleNext(context: Context, intervalMillis: Long) {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            // API 31+: the user can revoke SCHEDULE_EXACT_ALARM at any time.
+            // Fall back to inexact alarms rather than crashing.
+            val canScheduleExact = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S
+                || alarmManager.canScheduleExactAlarms()
             val intent = Intent(context, PollingAlarmReceiver::class.java)
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
@@ -49,14 +53,22 @@ class PollingAlarmReceiver : BroadcastReceiver() {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
             val triggerAt = SystemClock.elapsedRealtime() + intervalMillis
-            // setExactAndAllowWhileIdle fires even under Doze. It can be delayed
-            // by up to a few minutes under aggressive Doze, but it always fires
-            // eventually - far better than delay() which silently suspends.
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.ELAPSED_REALTIME,
-                triggerAt,
-                pendingIntent
-            )
+            if (canScheduleExact) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME,
+                    triggerAt,
+                    pendingIntent
+                )
+            } else {
+                // Best-effort fallback - won't fire under aggressive Doze but
+                // better than crashing. The FGS coroutine loop is the primary
+                // polling mechanism anyway; the alarm is a safety net.
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME,
+                    triggerAt,
+                    pendingIntent
+                )
+            }
         }
 
         fun cancel(context: Context) {

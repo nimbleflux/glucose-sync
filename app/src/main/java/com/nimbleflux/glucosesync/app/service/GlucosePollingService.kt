@@ -89,7 +89,14 @@ class GlucosePollingService : android.app.Service() {
         manager.createNotificationChannel(channel)
 
         val notification = GlucoseNotificationBuilder.buildDefault(this, channelId)
-        startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            // API 34+: FGS type enforcement is active, must pass the type
+            // explicitly so it matches the manifest declaration.
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            // API 26-33: the 2-arg overload inherits the type from the manifest.
+            startForeground(1, notification)
+        }
     }
 
     @Suppress("DEPRECATION")
