@@ -30,9 +30,15 @@ class GlucoseAlertManager private constructor(private val context: Context) {
         get() = settingsStore.getLastLowAlertTime()
         set(value) = settingsStore.setLastLowAlertTime(value)
 
+    private var lastStaleAlertTime: Long
+        get() = settingsStore.getLastStaleAlertTime()
+        set(value) = settingsStore.setLastStaleAlertTime(value)
+
     companion object {
         private const val NOTIFY_HIGH = 1001
         private const val NOTIFY_LOW = 1002
+        private const val NOTIFY_STALE = 1003
+        private const val STALE_CHANNEL_ID = "glucose_stale"
 
         @Volatile private var instance: GlucoseAlertManager? = null
 
@@ -42,6 +48,15 @@ class GlucoseAlertManager private constructor(private val context: Context) {
             }
         }
     }
+
+    /**
+     * In-memory counter for hysteresis on the threshold alerts. Requires
+     * two consecutive out-of-range polls before alerting, preventing
+     * boundary thrash when readings hover right at the threshold.
+     * Reset to 0 whenever a reading is in range.
+     */
+    private var consecutiveHighCount = 0
+    private var consecutiveLowCount = 0
 
     fun checkAndAlert(
         glucoseMmol: Double,
@@ -66,37 +81,116 @@ class GlucoseAlertManager private constructor(private val context: Context) {
 
         val suffix = channelSuffix(soundEnabled, vibrateEnabled, vibrateDurationSeconds)
 
-        if (glucoseMmol > highThresholdMmol && (now - lastHighAlertTime) >= repeatMs) {
-            lastHighAlertTime = now
-            showAlert(
-                id = NOTIFY_HIGH,
-                title = context.getString(R.string.alert_high_title),
-                channel = if (overrideDnd) "glucose_high_dnd_$suffix" else "glucose_high_$suffix",
-                glucose = displayValue,
-                threshold = displayHigh,
-                unit = unit,
-                comparison = context.getString(R.string.alert_comparison_above),
-                soundEnabled = soundEnabled,
-                vibrateEnabled = vibrateEnabled,
-                vibrateDurationSeconds = vibrateDurationSeconds,
-                overrideDnd = overrideDnd
-            )
-        } else if (glucoseMmol < lowThresholdMmol && (now - lastLowAlertTime) >= repeatMs) {
-            lastLowAlertTime = now
-            showAlert(
-                id = NOTIFY_LOW,
-                title = context.getString(R.string.alert_low_title),
-                channel = if (overrideDnd) "glucose_low_dnd_$suffix" else "glucose_low_$suffix",
-                glucose = displayValue,
-                threshold = displayLow,
-                unit = unit,
-                comparison = context.getString(R.string.alert_comparison_below),
-                soundEnabled = soundEnabled,
-                vibrateEnabled = vibrateEnabled,
-                vibrateDurationSeconds = vibrateDurationSeconds,
-                overrideDnd = overrideDnd
-            )
+        // Hysteresis: require 2 consecutive out-of-range readings before
+        // alerting. Eliminates noise from a single spurious reading that
+        // crosses the threshold for one poll cycle.
+        val requiredConsecutive = 2
+
+        if (glucoseMmol > highThresholdMmol) {
+            consecutiveHighCount++
+            consecutiveLowCount = 0
+            if (consecutiveHighCount >= requiredConsecutive && (now - lastHighAlertTime) >= repeatMs) {
+                lastHighAlertTime = now
+                showAlert(
+                    id = NOTIFY_HIGH,
+                    title = context.getString(R.string.alert_high_title),
+                    channel = if (overrideDnd) "glucose_high_dnd_$suffix" else "glucose_high_$suffix",
+                    glucose = displayValue,
+                    threshold = displayHigh,
+                    unit = unit,
+                    comparison = context.getString(R.string.alert_comparison_above),
+                    soundEnabled = soundEnabled,
+                    vibrateEnabled = vibrateEnabled,
+                    vibrateDurationSeconds = vibrateDurationSeconds,
+                    overrideDnd = overrideDnd
+                )
+            }
+        } else if (glucoseMmol < lowThresholdMmol) {
+            consecutiveLowCount++
+            consecutiveHighCount = 0
+            if (consecutiveLowCount >= requiredConsecutive && (now - lastLowAlertTime) >= repeatMs) {
+                lastLowAlertTime = now
+                showAlert(
+                    id = NOTIFY_LOW,
+                    title = context.getString(R.string.alert_low_title),
+                    channel = if (overrideDnd) "glucose_low_dnd_$suffix" else "glucose_low_$suffix",
+                    glucose = displayValue,
+                    threshold = displayLow,
+                    unit = unit,
+                    comparison = context.getString(R.string.alert_comparison_below),
+                    soundEnabled = soundEnabled,
+                    vibrateEnabled = vibrateEnabled,
+                    vibrateDurationSeconds = vibrateDurationSeconds,
+                    overrideDnd = overrideDnd
+                )
+            }
+        } else {
+            // In range - reset both counters so the next excursion starts fresh.
+            consecutiveHighCount = 0
+            consecutiveLowCount = 0
         }
+    }
+
+    /**
+     * Detect signal loss: if no reading has arrived within
+     * [staleThresholdMinutes], fire a notification on the dedicated stale
+     * channel. Throttled to one alert per threshold window so we don't
+     * spam every polling cycle while the user is still stale.
+     *
+     * Cleared automatically once fresh data arrives (the throttle tracker
+     * resets when ageSec drops below the threshold).
+     */
+    fun checkStaleAlert(
+        lastReadingEpochSec: Long,
+        staleThresholdMinutes: Int = 15,
+        alertsEnabled: Boolean
+    ) {
+        if (!alertsEnabled) return
+        val nowSec = System.currentTimeMillis() / 1000
+        val ageSec = nowSec - lastReadingEpochSec
+        if (ageSec < staleThresholdMinutes * 60L) {
+            // Fresh - reset the throttle tracker so the next staleness
+            // gets a fresh immediate alert instead of waiting for the
+            // repeat window to elapse.
+            if (lastStaleAlertTime != 0L) lastStaleAlertTime = 0L
+            return
+        }
+        val nowMs = System.currentTimeMillis()
+        if (nowMs - lastStaleAlertTime < staleThresholdMinutes * 60_000L) return
+        lastStaleAlertTime = nowMs
+
+        ensureStaleChannel()
+        val ageMinutes = (ageSec / 60L).toInt()
+        val text = context.getString(R.string.alert_stale_text, ageMinutes)
+        val tapIntent = PendingIntent.getActivity(
+            context, 0,
+            Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        val builder = Notification.Builder(context, STALE_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.alert_stale_title))
+            .setContentText(text)
+            .setStyle(Notification.BigTextStyle().bigText(text))
+            .setCategory(Notification.CATEGORY_REMINDER)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setAutoCancel(true)
+            .setContentIntent(tapIntent)
+        nm.notify(NOTIFY_STALE, builder.build())
+    }
+
+    private fun ensureStaleChannel() {
+        if (nm.getNotificationChannel(STALE_CHANNEL_ID) != null) return
+        val channel = NotificationChannel(
+            STALE_CHANNEL_ID,
+            context.getString(R.string.notification_channel_stale),
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = context.getString(R.string.notification_channel_stale_desc)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            setShowBadge(false)
+        }
+        nm.createNotificationChannel(channel)
     }
 
     private fun channelSuffix(sound: Boolean, vibrate: Boolean, duration: Int): String {
@@ -177,6 +271,21 @@ class GlucoseAlertManager private constructor(private val context: Context) {
                 nm.deleteNotificationChannel(channelId)
             } else {
                 return
+            }
+        }
+
+        // Prune orphaned sibling channels of the same prefix. Every time
+        // the user changes sound/vibrate/duration settings, ensureChannel
+        // creates a new channel with a fresh suffix - without this prune
+        // step the channel list would grow without bound (one per settings
+        // combination the user ever tried). We only touch channels that
+        // share this channel's prefix (glucose_high_* or glucose_low_*).
+        val prefix = channelId.substringBeforeLast('_', "")
+        if (prefix.isNotEmpty()) {
+            nm.notificationChannels.forEach { ch ->
+                if (ch.id != channelId && ch.id.startsWith(prefix + "_")) {
+                    nm.deleteNotificationChannel(ch.id)
+                }
             }
         }
 

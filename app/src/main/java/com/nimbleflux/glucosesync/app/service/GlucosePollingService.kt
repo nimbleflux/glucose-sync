@@ -220,6 +220,19 @@ class GlucosePollingService : android.app.Service() {
             throw e
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) Log.e(TAG, "Polling exception: ${e.message}")
+        } finally {
+            // Always check staleness, regardless of fetch outcome. A failed
+            // fetch is the most common cause of stale data, so this belongs
+            // in finally, not in onSuccess/onFailure. Skip if we have no
+            // reading yet (cold start) - nothing to compare against.
+            if (lastTimestamp > 0L) {
+                val alertsEnabled = try { settingsStore.getAlertsEnabled() } catch (_: Exception) { true }
+                alertManager.checkStaleAlert(
+                    lastReadingEpochSec = lastTimestamp,
+                    staleThresholdMinutes = 15,
+                    alertsEnabled = alertsEnabled
+                )
+            }
         }
     }
 
