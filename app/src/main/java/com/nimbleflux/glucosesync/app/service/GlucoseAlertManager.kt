@@ -9,14 +9,26 @@ import android.content.Intent
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import com.nimbleflux.glucosesync.app.R
+import com.nimbleflux.glucosesync.app.data.SettingsStore
 import com.nimbleflux.glucosesync.app.ui.MainActivity
 
 class GlucoseAlertManager private constructor(private val context: Context) {
 
     private val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private val settingsStore = SettingsStore(context)
 
-    private var lastHighAlertTime: Long = 0
-    private var lastLowAlertTime: Long = 0
+    /**
+     * Throttle windows are persisted in SettingsStore so that service
+     * restarts (which used to reset these to 0) cannot violate the
+     * repeat-window contract. Reads happen inline; writes are async.
+     */
+    private var lastHighAlertTime: Long
+        get() = settingsStore.getLastHighAlertTime()
+        set(value) = settingsStore.setLastHighAlertTime(value)
+
+    private var lastLowAlertTime: Long
+        get() = settingsStore.getLastLowAlertTime()
+        set(value) = settingsStore.setLastLowAlertTime(value)
 
     companion object {
         private const val NOTIFY_HIGH = 1001

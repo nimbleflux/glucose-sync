@@ -215,7 +215,9 @@ private fun ActiveSection(
     val inRange = glucose in lowThreshold..highThreshold
     val glucoseColor = when {
         glucose < lowThreshold || glucose > highThreshold -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.primary
+        // In-range uses the green tertiary role, leaving primary (blue) for
+        // chrome and accents. Communicates "safe zone" at a glance.
+        else -> MaterialTheme.colorScheme.tertiary
     }
     val stateLabel = when {
         glucose > highThreshold -> "HIGH"
