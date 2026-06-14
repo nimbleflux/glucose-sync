@@ -1,6 +1,6 @@
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.plugin.compose")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.plugin.compose)
 }
 
 android {
@@ -52,20 +52,14 @@ android {
 dependencies {
     implementation(project(":shared"))
 
-    val composeBomVersion = rootProject.extra["composeBomVersion"] as String
-    val wearComposeVersion = rootProject.extra["wearComposeVersion"] as String
-    val lifecycleVersion = rootProject.extra["lifecycleVersion"] as String
-    val wearableVersion = rootProject.extra["wearableVersion"] as String
-
-    implementation(platform("androidx.compose:compose-bom:$composeBomVersion"))
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.wear.compose:compose-material:$wearComposeVersion")
-    implementation("androidx.wear.compose:compose-foundation:$wearComposeVersion")
-    implementation("androidx.activity:activity-compose:1.13.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:$lifecycleVersion")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:$lifecycleVersion")
-
-    implementation("com.google.android.gms:play-services-wearable:$wearableVersion")
-    implementation("androidx.wear.watchface:watchface-complications-data:1.3.0")
-    implementation("androidx.wear.watchface:watchface-complications-data-source:1.3.0")
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.wear.compose.material)
+    implementation(libs.wear.compose.foundation)
+    implementation(libs.activity.compose)
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.lifecycle.runtime.compose)
+    implementation(libs.play.services.wearable)
+    implementation(libs.wear.watchface.complications.data)
+    implementation(libs.wear.watchface.complications.data.source)
 }
