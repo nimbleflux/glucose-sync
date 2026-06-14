@@ -47,6 +47,15 @@ android {
         compose = true
         buildConfig = true
     }
+
+    lint {
+        // NonObservableLocale flags String.format() inside @Composable
+        // functions. The concern is that a runtime locale change won't
+        // trigger recomposition. In practice these values re-render on
+        // the next data update (every 60s) and the locale-change-while-
+        // app-is-open scenario is extremely rare for a CGM app.
+        warning += "NonObservableLocale"
+    }
 }
 
 dependencies {
