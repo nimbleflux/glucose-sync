@@ -5,8 +5,6 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") version "2.4.0" apply false
 }
 
-extra["kotlinVersion"] = "2.1.21"
-
 val composeBomVersion = "2026.05.01"
 extra["composeBomVersion"] = composeBomVersion
 extra["wearComposeVersion"] = "1.6.2"

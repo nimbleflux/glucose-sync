@@ -72,18 +72,6 @@ class SettingsStore(context: Context) {
         prefs.edit().putBoolean("alert_vibrate", enabled).apply()
     }
 
-    suspend fun getAlertVolumeOverride(): Boolean = prefs.getBoolean("alert_volume_override", false)
-
-    suspend fun setAlertVolumeOverride(enabled: Boolean) {
-        prefs.edit().putBoolean("alert_volume_override", enabled).apply()
-    }
-
-    suspend fun getAlertAscendingVolume(): Boolean = prefs.getBoolean("alert_ascending_volume", true)
-
-    suspend fun setAlertAscendingVolume(enabled: Boolean) {
-        prefs.edit().putBoolean("alert_ascending_volume", enabled).apply()
-    }
-
     suspend fun getAlertVibrateDuration(): Int = prefs.getInt("alert_vibrate_duration", 3)
 
     suspend fun setAlertVibrateDuration(seconds: Int) {
@@ -106,5 +94,17 @@ class SettingsStore(context: Context) {
 
     suspend fun setWearBannerDismissed(dismissed: Boolean) {
         prefs.edit().putBoolean("wear_banner_dismissed", dismissed).apply()
+    }
+
+    fun getLastHighAlertTime(): Long = prefs.getLong("last_high_alert_time", 0L)
+
+    fun setLastHighAlertTime(epochMs: Long) {
+        prefs.edit().putLong("last_high_alert_time", epochMs).apply()
+    }
+
+    fun getLastLowAlertTime(): Long = prefs.getLong("last_low_alert_time", 0L)
+
+    fun setLastLowAlertTime(epochMs: Long) {
+        prefs.edit().putLong("last_low_alert_time", epochMs).apply()
     }
 }

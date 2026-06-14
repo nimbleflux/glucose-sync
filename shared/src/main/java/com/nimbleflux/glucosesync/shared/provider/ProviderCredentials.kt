@@ -12,11 +12,5 @@ sealed class ProviderCredentials {
         val token: String
     ) : ProviderCredentials()
 
-    data class OAuth(
-        val clientId: String,
-        val clientSecret: String,
-        val authCode: String? = null
-    ) : ProviderCredentials()
-
     data object None : ProviderCredentials()
 }

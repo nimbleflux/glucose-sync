@@ -16,12 +16,4 @@ interface MedtrumApi {
         @Path("uid") uid: Long,
         @Query("param") param: String
     ): StatusResponse
-
-    @POST("api/v2.0/monitor/data")
-    suspend fun monitorData(
-        @Body body: Map<String, @JvmSuppressWildcards Any>
-    ): MonitorDataResponse
-
-    @POST("api/v2.1/data/{uid}")
-    suspend fun dashboard(@Path("uid") uid: Long): DashboardResponse
 }

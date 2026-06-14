@@ -113,8 +113,6 @@
 
     <string name="settings_notification">Notification</string>
     <string name="settings_notification_desc">Configure the persistent notification</string>
-    <string name="settings_status_bar_glucose">Glucose in status bar</string>
-    <string name="settings_status_bar_glucose_desc">Show the glucose value as an icon in the status bar</string>
 
     <string name="stat_delta">Delta</string>
     <string name="pump_info_title">Pump info</string>

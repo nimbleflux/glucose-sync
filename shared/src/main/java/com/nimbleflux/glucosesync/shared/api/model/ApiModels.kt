@@ -64,47 +64,14 @@ data class PumpStatus(
 data class ChartData(
     val sg: List<JsonElement> = emptyList(),
     val glucose_unit: String = "mmol/L",
-    val sg_rate_unit: String = "mmol/L/min",
     val blos_high: Double = 10.0,
     val blos_low: Double = 3.9,
     val hypo: Double = 3.1,
     val st: Double = 0.0,
     val et: Double = 0.0,
-    val SGStateText: Map<String, String> = emptyMap(),
-    val basal: List<JsonElement> = emptyList(),
-    val bolus: List<JsonElement> = emptyList(),
-    val calibRecord: List<JsonElement> = emptyList(),
     val sensor_alarm: List<JsonElement> = emptyList(),
     val pump_alarm: List<JsonElement> = emptyList(),
-    val alarm_display: String? = null,
-    val sleeptime: List<Int> = emptyList()
-)
-
-@Serializable
-data class MonitorDataResponse(
-    val data: MonitorData? = null,
-    val error: Int = -1
-)
-
-@Serializable
-data class MonitorData(
-    val sg: List<JsonElement> = emptyList(),
-    val sensor: SensorStatus = SensorStatus(),
-    val pump: PumpStatus = PumpStatus(),
-    val eventNo: Long = 0
-)
-
-@Serializable
-data class DashboardResponse(
-    val data: DashboardData? = null,
-    val error: Int = -1
-)
-
-@Serializable
-data class DashboardData(
-    val target_high: Double? = null,
-    val target_low: Double? = null,
-    val data_source: String = ""
+    val alarm_display: String? = null
 )
 
 @Serializable
