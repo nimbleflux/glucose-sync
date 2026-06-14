@@ -11,12 +11,25 @@ import android.media.RingtoneManager
 import com.nimbleflux.glucosesync.app.R
 import com.nimbleflux.glucosesync.app.ui.MainActivity
 
-class GlucoseAlertManager(private val context: Context) {
+class GlucoseAlertManager private constructor(private val context: Context) {
 
     private val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     private var lastHighAlertTime: Long = 0
     private var lastLowAlertTime: Long = 0
+
+    companion object {
+        private const val NOTIFY_HIGH = 1001
+        private const val NOTIFY_LOW = 1002
+
+        @Volatile private var instance: GlucoseAlertManager? = null
+
+        fun getInstance(context: Context): GlucoseAlertManager {
+            return instance ?: synchronized(this) {
+                instance ?: GlucoseAlertManager(context.applicationContext).also { instance = it }
+            }
+        }
+    }
 
     fun checkAndAlert(
         glucoseMmol: Double,
@@ -168,10 +181,5 @@ class GlucoseAlertManager(private val context: Context) {
             setShowBadge(true)
         }
         nm.createNotificationChannel(channel)
-    }
-
-    companion object {
-        private const val NOTIFY_HIGH = 1001
-        private const val NOTIFY_LOW = 1002
     }
 }

@@ -32,6 +32,7 @@ class GlucosePollingService : android.app.Service() {
     private lateinit var credentialStore: CredentialStore
     private lateinit var settingsStore: SettingsStore
     private lateinit var alertManager: GlucoseAlertManager
+    private lateinit var coordinator: com.nimbleflux.glucosesync.app.domain.GlucoseCoordinator
     private var provider: GlucoseProvider? = null
     private val accumulatedHistory = mutableListOf<GlucoseHistoryPoint>()
     private var lastGlucose: Double? = null
@@ -56,7 +57,8 @@ class GlucosePollingService : android.app.Service() {
         dataClient = Wearable.getDataClient(this)
         credentialStore = CredentialStore(this)
         settingsStore = SettingsStore(this)
-        alertManager = GlucoseAlertManager(this)
+        alertManager = GlucoseAlertManager.getInstance(this)
+        coordinator = com.nimbleflux.glucosesync.app.domain.GlucoseCoordinator(this, settingsStore)
         Wearable.getMessageClient(this).addListener(messageListener)
         PollingWorker.schedule(this)
     }
@@ -155,114 +157,69 @@ class GlucosePollingService : android.app.Service() {
     private suspend fun fetchAndSync() {
         val p = provider ?: return
         try {
-            val result = p.fetchGlucose()
-            result.onSuccess { snapshot ->
-                if (snapshot.glucose != null) {
-                    val glucose = snapshot.glucose!!
-                    val timestamp = snapshot.timestamp
-                    if (BuildConfig.DEBUG) Log.d(TAG, "Glucose: $glucose at $timestamp")
+            coordinator.fetchAndProcess(p, accumulatedHistory.toList())
+                .onSuccess { processed ->
+                    val snapshot = processed.snapshot
+                    val glucose = snapshot.glucose
+                    if (glucose != null) {
+                        if (BuildConfig.DEBUG) Log.d(TAG, "Glucose: $glucose at ${snapshot.timestamp}")
 
-                    val merged = if (snapshot.history.isNotEmpty()) {
-                        GlucoseAggregator.mergeHistory(accumulatedHistory.toList(), snapshot.history)
-                    } else {
-                        GlucoseAggregator.mergeHistory(
-                            accumulatedHistory.toList(),
-                            listOf(GlucoseHistoryPoint(timestamp, glucose))
+                        accumulatedHistory.clear()
+                        accumulatedHistory.addAll(processed.history)
+
+                        lastGlucose = glucose
+                        lastTrend = processed.trend.symbol
+                        lastDelta = processed.delta
+                        lastUnit = snapshot.unit
+                        lastBattery = snapshot.batteryPercent
+                        lastTimestamp = snapshot.timestamp
+
+                        updateNotification()
+
+                        val alertsEnabled = try { settingsStore.getAlertsEnabled() } catch (_: Exception) { true }
+                        val high = try { settingsStore.getHighThresholdMmol() } catch (_: Exception) { 10.0 }
+                        val low = try { settingsStore.getLowThresholdMmol() } catch (_: Exception) { 3.9 }
+                        val dnd = try { settingsStore.getOverrideDnd() } catch (_: Exception) { true }
+                        val repeat = try { settingsStore.getAlertRepeatMinutes() } catch (_: Exception) { 5 }
+                        val sound = try { settingsStore.getAlertSound() } catch (_: Exception) { true }
+                        val vibrate = try { settingsStore.getAlertVibrate() } catch (_: Exception) { true }
+                        val vibrateDuration = try { settingsStore.getAlertVibrateDuration() } catch (_: Exception) { 3 }
+
+                        alertManager.checkAndAlert(
+                            glucoseMmol = glucose,
+                            unit = snapshot.unit,
+                            highThresholdMmol = high,
+                            lowThresholdMmol = low,
+                            alertsEnabled = alertsEnabled,
+                            overrideDnd = dnd,
+                            repeatMinutes = repeat,
+                            soundEnabled = sound,
+                            vibrateEnabled = vibrate,
+                            vibrateDurationSeconds = vibrateDuration
                         )
                     }
-                    val trimmed = GlucoseAggregator.trimTo24h(merged)
-                    accumulatedHistory.clear()
-                    accumulatedHistory.addAll(trimmed)
-
-                    val deltaMin = try { settingsStore.getDeltaMinutes() } catch (_: Exception) { 5 }
-                    val computedDelta = GlucoseAggregator.computeDelta(accumulatedHistory, deltaMin) ?: snapshot.delta
-                    val trend = GlucoseAggregator.resolveTrend(snapshot.trend, computedDelta)
-                    val trendSymbol = trend.symbol
-
-                    lastGlucose = glucose
-                    lastTrend = trendSymbol
-                    lastDelta = computedDelta
-                    lastUnit = snapshot.unit
-                    lastBattery = snapshot.batteryPercent
-                    lastTimestamp = timestamp
-
-                    syncToWatch(glucose, timestamp, trendSymbol, computedDelta, snapshot.unit, snapshot)
-                    updateNotification()
-
-                    val alertsEnabled = try { settingsStore.getAlertsEnabled() } catch (_: Exception) { true }
-                    val high = try { settingsStore.getHighThresholdMmol() } catch (_: Exception) { 10.0 }
-                    val low = try { settingsStore.getLowThresholdMmol() } catch (_: Exception) { 3.9 }
-                    val dnd = try { settingsStore.getOverrideDnd() } catch (_: Exception) { true }
-                    val repeat = try { settingsStore.getAlertRepeatMinutes() } catch (_: Exception) { 5 }
-                    val sound = try { settingsStore.getAlertSound() } catch (_: Exception) { true }
-                    val vibrate = try { settingsStore.getAlertVibrate() } catch (_: Exception) { true }
-                    val vibrateDuration = try { settingsStore.getAlertVibrateDuration() } catch (_: Exception) { 3 }
-
-                    alertManager.checkAndAlert(
-                        glucoseMmol = glucose,
-                        unit = snapshot.unit,
-                        highThresholdMmol = high,
-                        lowThresholdMmol = low,
-                        alertsEnabled = alertsEnabled,
-                        overrideDnd = dnd,
-                        repeatMinutes = repeat,
-                        soundEnabled = sound,
-                        vibrateEnabled = vibrate,
-                        vibrateDurationSeconds = vibrateDuration
-                    )
-                }
-            }.onFailure { e ->
-                if (BuildConfig.DEBUG) Log.e(TAG, "Polling error: ${e.message}")
-                val shouldReauth = when (e) {
-                    is GlucoseError.SessionExpired -> true
-                    is GlucoseError.ServerError -> e.code == 401 || e.code == 403
-                    else -> e.message?.contains("403") == true || e.message?.contains("401") == true
-                }
-                if (shouldReauth && p is LibreLinkUpProvider) {
-                    if (BuildConfig.DEBUG) Log.d(TAG, "Attempting LibreLinkUp re-auth")
-                    val reAuthed = p.reAuthenticate()
-                    if (reAuthed) {
-                        credentialStore.saveSelectedProvider("libre_linkup")
-                        if (BuildConfig.DEBUG) Log.d(TAG, "LibreLinkUp re-auth succeeded")
-                    } else {
-                        if (BuildConfig.DEBUG) Log.e(TAG, "LibreLinkUp re-auth failed")
+                }.onFailure { e ->
+                    if (BuildConfig.DEBUG) Log.e(TAG, "Polling error: ${e.message}")
+                    val shouldReauth = when (e) {
+                        is GlucoseError.SessionExpired -> true
+                        is GlucoseError.ServerError -> e.code == 401 || e.code == 403
+                        else -> e.message?.contains("403") == true || e.message?.contains("401") == true
+                    }
+                    if (shouldReauth && p is LibreLinkUpProvider) {
+                        if (BuildConfig.DEBUG) Log.d(TAG, "Attempting LibreLinkUp re-auth")
+                        val reAuthed = p.reAuthenticate()
+                        if (reAuthed) {
+                            credentialStore.saveSelectedProvider("libre_linkup")
+                            if (BuildConfig.DEBUG) Log.d(TAG, "LibreLinkUp re-auth succeeded")
+                        } else {
+                            if (BuildConfig.DEBUG) Log.e(TAG, "LibreLinkUp re-auth failed")
+                        }
                     }
                 }
-            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) Log.e(TAG, "Polling exception: ${e.message}")
-        }
-    }
-
-    private fun syncToWatch(glucose: Double, timestamp: Long, trend: String, delta: Double?, unit: String, snapshot: GlucoseSnapshot) {
-        try {
-            val payload = WatchPayload(
-                glucose = glucose,
-                timestamp = timestamp,
-                trend = trend,
-                unit = unit,
-                iob = snapshot.iob,
-                delta = delta,
-                batteryPercent = snapshot.batteryPercent,
-                basalRate = snapshot.basalRate,
-                lastBolus = snapshot.lastBolus,
-                lastBolusTime = snapshot.lastBolusTime,
-                remainingDose = snapshot.remainingDose,
-                highThreshold = snapshot.highThreshold,
-                lowThreshold = snapshot.lowThreshold,
-                timeInRange = snapshot.timeInRange,
-                averageGlucose = snapshot.averageGlucose,
-                history = GlucoseAggregator.trimHistory(
-                    accumulatedHistory.toList(),
-                    WatchPayloadCodec.MAX_HISTORY_AGE_SEC
-                )
-            )
-            dataClient.putDataItem(WatchPayloadCodec.toPutDataRequest(payload))
-            if (BuildConfig.DEBUG) Log.d(TAG, "Synced to watch: $glucose $unit")
-        } catch (e: Exception) {
-            if (BuildConfig.DEBUG) Log.e(TAG, "Watch sync failed: ${e.message}")
         }
     }
 
