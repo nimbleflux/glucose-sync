@@ -6,6 +6,7 @@ import com.nimbleflux.glucosesync.shared.api.model.*
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
 import com.nimbleflux.glucosesync.shared.data.Credentials
 import com.nimbleflux.glucosesync.shared.domain.AlertEntry
+import com.nimbleflux.glucosesync.shared.domain.GlucoseAggregator
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
 import com.nimbleflux.glucosesync.shared.domain.TrendArrow
@@ -27,9 +28,6 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import okhttp3.MediaType.Companion.toMediaType
 import java.time.LocalDate
 import java.time.ZoneId
-import java.net.CookieManager
-import java.net.CookiePolicy
-import okhttp3.JavaNetCookieJar
 import java.util.concurrent.TimeUnit
 
 class MedtrumProvider(private val context: Context, private val debug: Boolean = false) : GlucoseProvider {
@@ -45,7 +43,11 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val credentialStore = CredentialStore(context)
-    private val cookieManager = CookieManager().apply { setCookiePolicy(CookiePolicy.ACCEPT_ALL) }
+    private val cookieJar = PersistedCookieJar(object : CookiePersistence {
+        override fun loadCookies(): String? = credentialStore.getMedtrumCookies()
+        override fun saveCookies(json: String) = credentialStore.saveMedtrumCookies(json)
+        override fun clearCookies() = credentialStore.clearMedtrumCookies()
+    })
 
     private var uid: Long = 0
     private var realname: String = ""
@@ -70,6 +72,7 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
                 monitorUid = uid
                 credentialStore.saveCredentials(Credentials(creds.username, creds.password, creds.baseUrl))
                 credentialStore.saveSession(response.uid, response.realname)
+                credentialStore.saveMedtrumUserType(userType)
 
                 val displayName = if (userType == "M") realname else response.realname
                 Result.success(
@@ -89,21 +92,54 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
 
     override suspend fun restoreSession(): Boolean {
         val creds = credentialStore.getCredentials() ?: return false
+
+        // Try the persisted cookie jar first; if the server still honours the
+        // session we skip the full login round-trip on every cold start.
+        api = buildApi(creds.baseUrl)
+        val sessionIsValid = try {
+            val probe = api?.getConnections()
+            probe?.error == 0
+        } catch (_: Exception) {
+            false
+        }
+
+        if (sessionIsValid) {
+            val (savedUid, savedRealname) = credentialStore.getSession() ?: (0L to "")
+            uid = savedUid
+            realname = savedRealname
+            userType = credentialStore.getMedtrumUserType() ?: "P"
+            monitorUid = uid
+            val probe = api?.getConnections()
+            cachedConnections = probe?.data?.items.orEmpty()
+            applyCarerPatientIfPresent()
+            return true
+        }
+
+        // Cookie session rejected or never existed - fall back to fresh login.
         return try {
             val result = login(ProviderCredentials.UsernamePassword(creds.username, creds.password, creds.baseUrl))
-            if (result.isSuccess && isCarer()) {
-                val savedPatientUid = credentialStore.getMedtrumPatientUid()
-                if (savedPatientUid > 0) {
-                    monitorUid = savedPatientUid
-                    val savedName = credentialStore.getMedtrumPatientName()
-                    if (savedName != null) {
-                        credentialStore.saveSessionDisplayNameSync(savedName)
-                    }
-                }
-            }
+            if (result.isSuccess) applyCarerPatientIfPresent()
             result.isSuccess
         } catch (_: Exception) {
             false
+        }
+    }
+
+    /**
+     * After either a cookie-based restore or a fresh login, [login] leaves
+     * [monitorUid] pointed at the user's own uid. For carers that's wrong:
+     * we need to point at the previously-selected patient uid so the next
+     * fetchGlucose call queries the right subject.
+     */
+    private fun applyCarerPatientIfPresent() {
+        if (!isCarer()) return
+        val savedPatientUid = credentialStore.getMedtrumPatientUidSync()
+        if (savedPatientUid > 0) {
+            monitorUid = savedPatientUid
+            val savedName = credentialStore.getMedtrumPatientNameSync()
+            if (savedName != null) {
+                credentialStore.saveSessionDisplayNameSync(savedName)
+            }
         }
     }
 
@@ -155,7 +191,14 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
                 val delta = if (history.size >= 2) {
                     history.last().glucoseMmol - history[history.size - 2].glucoseMmol
                 } else null
-                val trend = computeTrend(delta)
+                val rate = GlucoseAggregator.computeRatePerMinute(history)
+                val trend = if (rate != null) {
+                    TrendArrow.fromRate(rate)
+                } else if (delta != null) {
+                    TrendArrow.fromDelta(delta)
+                } else {
+                    TrendArrow.UNKNOWN
+                }
                 val pump = response.data.pump_status
 
                 val timeInRange = if (history.isNotEmpty()) {
@@ -203,7 +246,11 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
     override fun logout() {
         uid = 0
         realname = ""
+        userType = ""
+        monitorUid = 0
+        cachedConnections = emptyList()
         api = null
+        cookieJar.clear()
     }
 
     fun getRealname(): String = realname
@@ -223,11 +270,6 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
             } else null
         }.distinctBy { it.timestamp }.sortedBy { it.timestamp }
         return SgParseResult(history)
-    }
-
-    private fun computeTrend(delta: Double?): TrendArrow {
-        if (delta != null) return TrendArrow.fromDelta(delta)
-        return TrendArrow.UNKNOWN
     }
 
     private fun parseAlerts(
@@ -252,7 +294,7 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
 
     private fun buildApi(baseUrl: String): MedtrumApi {
         val client = OkHttpClient.Builder()
-            .cookieJar(JavaNetCookieJar(cookieManager))
+            .cookieJar(cookieJar)
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)

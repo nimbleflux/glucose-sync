@@ -252,12 +252,16 @@ class LibreLinkUpProvider(private val context: Context, private val debug: Boole
         }
     }
 
-    private fun mapTrend(arrow: Int?): TrendArrow = when (arrow) {
+    internal fun mapTrend(arrow: Int?): TrendArrow = when (arrow) {
         1 -> TrendArrow.RISING_RAPIDLY
         2 -> TrendArrow.RISING
         3 -> TrendArrow.STABLE
         4 -> TrendArrow.FALLING
         5 -> TrendArrow.FALLING_RAPIDLY
+        // LibreLinkUp docs publish only 1-5 today, but the slowly variants
+        // are mapped defensively in case a future API revision emits them.
+        6 -> TrendArrow.RISING_SLOWLY
+        7 -> TrendArrow.FALLING_SLOWLY
         else -> TrendArrow.UNKNOWN
     }
 }

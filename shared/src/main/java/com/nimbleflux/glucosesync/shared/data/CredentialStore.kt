@@ -47,6 +47,8 @@ class CredentialStore(context: Context) {
         const val LIBRE_PATIENT_NAME = "libre_patient_name"
         const val MEDTRUM_PATIENT_UID = "medtrum_patient_uid"
         const val MEDTRUM_PATIENT_NAME = "medtrum_patient_name"
+        const val MEDTRUM_USER_TYPE = "medtrum_user_type"
+        const val MEDTRUM_COOKIES = "medtrum_cookies"
     }
 
     suspend fun saveCredentials(creds: Credentials) {
@@ -158,5 +160,21 @@ class CredentialStore(context: Context) {
 
     suspend fun clear() {
         prefs.edit().clear().apply()
+    }
+
+    fun saveMedtrumUserType(userType: String) {
+        prefs.edit().putString(Keys.MEDTRUM_USER_TYPE, userType).apply()
+    }
+
+    fun getMedtrumUserType(): String? = prefs.getString(Keys.MEDTRUM_USER_TYPE, null)
+
+    fun saveMedtrumCookies(json: String) {
+        prefs.edit().putString(Keys.MEDTRUM_COOKIES, json).apply()
+    }
+
+    fun getMedtrumCookies(): String? = prefs.getString(Keys.MEDTRUM_COOKIES, null)
+
+    fun clearMedtrumCookies() {
+        prefs.edit().remove(Keys.MEDTRUM_COOKIES).apply()
     }
 }
