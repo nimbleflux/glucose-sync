@@ -89,7 +89,7 @@ class GlucosePollingService : android.app.Service() {
         manager.createNotificationChannel(channel)
 
         val notification = GlucoseNotificationBuilder.buildDefault(this, channelId)
-        startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
     }
 
     @Suppress("DEPRECATION")
