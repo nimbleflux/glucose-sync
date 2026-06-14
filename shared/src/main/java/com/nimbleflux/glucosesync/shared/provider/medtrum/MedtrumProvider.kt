@@ -315,7 +315,10 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
         val zone = ZoneId.systemDefault()
         val startOfDay = LocalDate.now(zone).atStartOfDay(zone).toEpochSecond()
         val endOfDay = startOfDay + 86399
-        val paramJson = """{"ts":[$startOfDay,$endOfDay],"tz":0}"""
+        // Medtrum's API expects tz as seconds east of UTC. Use the actual
+        // offset for the local zone, including DST, instead of hard-coded 0.
+        val tzOffsetSec = zone.rules.getOffset(java.time.Instant.ofEpochSecond(startOfDay)).totalSeconds
+        val paramJson = """{"ts":[$startOfDay,$endOfDay],"tz":$tzOffsetSec}"""
         return Base64.encodeToString(paramJson.toByteArray(), Base64.NO_WRAP)
     }
 }

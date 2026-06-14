@@ -7,10 +7,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -32,7 +38,9 @@ fun GlucoseScreen(
     realname: String,
     isDemo: Boolean,
     isLoading: Boolean,
+    isRefreshing: Boolean,
     error: String?,
+    refreshError: String?,
     history: List<GlucoseHistoryPoint>,
     timeInRange: Int,
     averageGlucose: Double?,
@@ -52,7 +60,16 @@ fun GlucoseScreen(
     onInstallWearApp: () -> Unit,
     onDismissWearBanner: () -> Unit
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    val refreshErrorString = refreshError
+    LaunchedEffect(refreshErrorString) {
+        refreshErrorString?.let {
+            snackbarHostState.showSnackbar(it)
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -76,14 +93,14 @@ fun GlucoseScreen(
                     }
                 },
                 actions = {
-                    if (isLoading) {
+                    if (isLoading || isRefreshing) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp).padding(end = 4.dp),
                             strokeWidth = 2.dp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    IconButton(onClick = onRefresh, enabled = !isLoading) {
+                    IconButton(onClick = onRefresh, enabled = !isLoading && !isRefreshing) {
                         Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.content_desc_refresh),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -196,6 +213,11 @@ private fun ActiveSection(
         glucose < lowThreshold || glucose > highThreshold -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.primary
     }
+    val stateLabel = when {
+        glucose > highThreshold -> "HIGH"
+        glucose < lowThreshold -> "LOW"
+        else -> null
+    }
 
     Surface(
         shape = MaterialTheme.shapes.extraLarge,
@@ -213,7 +235,11 @@ private fun ActiveSection(
                     fontSize = 72.sp,
                     fontWeight = FontWeight.Bold,
                     color = glucoseColor,
-                    lineHeight = 72.sp
+                    lineHeight = 72.sp,
+                    modifier = Modifier.semantics {
+                        liveRegion = LiveRegionMode.Polite
+                        contentDescription = "Glucose ${String.format("%.1f", glucose)} $unit${stateLabel?.let { ", $it" } ?: ""}"
+                    }
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
@@ -222,6 +248,21 @@ private fun ActiveSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
+                if (stateLabel != null) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = glucoseColor,
+                        modifier = Modifier.padding(bottom = 14.dp)
+                    ) {
+                        Text(
+                            text = stateLabel,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onError,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
             }
 
             if (trend.isNotEmpty()) {
@@ -263,10 +304,20 @@ private fun ActiveSection(
                 Text(stringResource(R.string.history_24h), style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(8.dp))
+                val chartDescription = if (history.size >= 2) {
+                    val minV = history.minOf { it.glucoseMmol }
+                    val maxV = history.maxOf { it.glucoseMmol }
+                    val inRangeCount = history.count { it.glucoseMmol in lowThreshold..highThreshold }
+                    val pct = (inRangeCount * 100) / history.size
+                    "24 hour glucose chart. Min ${"%.1f".format(minV)}, max ${"%.1f".format(maxV)}, $pct percent in range."
+                } else {
+                    "24 hour glucose chart. Not enough data yet."
+                }
                 GlucoseChart(
                     history = history,
                     highThreshold = highThreshold,
-                    lowThreshold = lowThreshold
+                    lowThreshold = lowThreshold,
+                    modifier = Modifier.semantics { contentDescription = chartDescription }
                 )
             }
         }

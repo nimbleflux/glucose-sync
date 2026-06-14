@@ -41,7 +41,8 @@ fun GlucoseChart(
     val tooltipBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f)
     val tooltipFg = MaterialTheme.colorScheme.onSurface
     val alertColor = MaterialTheme.colorScheme.error
-    val warnColor = Color(0xFFFF9800)
+    val warnColor = MaterialTheme.colorScheme.secondary
+    val dotColor = MaterialTheme.colorScheme.onPrimary
 
     val values = history.map { it.glucoseMmol }
     val minVal = (values.minOrNull() ?: 0.0).coerceAtMost(lowThreshold - 1.0)
@@ -49,7 +50,7 @@ fun GlucoseChart(
     val range = maxVal - minVal
 
     val now = System.currentTimeMillis() / 1000
-    val windowSec = 43200.0
+    val windowSec = 86400.0
     val earliestData = history.firstOrNull()?.timestamp?.toDouble() ?: (now - windowSec)
     val timeStart = maxOf(now - windowSec, earliestData)
 
@@ -138,7 +139,7 @@ fun GlucoseChart(
             )
         }
 
-        val stepSec = 10800L
+        val stepSec = 21600L
         val firstLabelTs = ((timeStart.toLong() + stepSec - 1) / stepSec) * stepSec
         var gridTs = firstLabelTs
         while (gridTs < now) {
@@ -194,7 +195,7 @@ fun GlucoseChart(
         val lastX = xForTimestamp(history.last().timestamp)
         val lastY = yForValue(history.last().glucoseMmol)
         drawCircle(stableColor, radius = 5f, center = Offset(lastX, lastY))
-        drawCircle(Color.White, radius = 2.5f, center = Offset(lastX, lastY))
+        drawCircle(dotColor, radius = 2.5f, center = Offset(lastX, lastY))
 
         var labelTs = firstLabelTs
         while (labelTs < now) {
@@ -219,7 +220,7 @@ fun GlucoseChart(
                 strokeWidth = 1f
             )
 
-            drawCircle(Color.White, radius = 8f, center = Offset(px, py))
+            drawCircle(dotColor, radius = 8f, center = Offset(px, py))
             drawCircle(lineColor, radius = 6f, center = Offset(px, py))
 
             val valueText = String.format("%.1f", point.glucoseMmol)
