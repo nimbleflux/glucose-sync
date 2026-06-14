@@ -353,27 +353,85 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        ThresholdSlider(
-                            label = stringResource(R.string.settings_high_threshold),
-                            value = highDisplay,
-                            onValueChange = { v ->
-                                val mmol = if (isMmol) v.toDouble() else v.toDouble() / 18.0
-                                onHighThresholdChange(mmol)
-                            },
-                            range = if (isMmol) 5.0f..22.0f else 90f..400f,
-                            unitLabel = unitLabel
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        // Local state for the in-flight drag value so we can show
+                        // instant feedback without writing to EncryptedSharedPreferences
+                        // on every drag pixel.
+                        val gap = if (isMmol) 0.1f else 2f
+                        val sliderMin = if (isMmol) 1.0f else 18f
+                        val sliderMax = if (isMmol) 22.0f else 400f
 
-                        ThresholdSlider(
-                            label = stringResource(R.string.settings_low_threshold),
-                            value = lowDisplay,
-                            onValueChange = { v ->
-                                val mmol = if (isMmol) v.toDouble() else v.toDouble() / 18.0
-                                onLowThresholdChange(mmol)
+                        // Guard against persisted invalid state.
+                        val safeLow = minOf(lowDisplay.toFloat(), highDisplay.toFloat() - gap)
+                            .coerceIn(sliderMin, sliderMax - gap)
+                        val safeHigh = maxOf(highDisplay.toFloat(), safeLow + gap).coerceIn(sliderMin + gap, sliderMax)
+                        var rangeDraft by remember(safeLow, safeHigh) {
+                            mutableStateOf(safeLow..safeHigh)
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    stringResource(R.string.settings_low_threshold),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    String.format("%.1f %s", rangeDraft.start, unitLabel),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    stringResource(R.string.settings_high_threshold),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    String.format("%.1f %s", rangeDraft.endInclusive, unitLabel),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        RangeSlider(
+                            value = rangeDraft,
+                            onValueChange = { newRange ->
+                                // RangeSlider itself prevents start > end (thumbs
+                                // can touch but not cross). We additionally enforce
+                                // a minimum gap so the safe zone can't collapse to
+                                // a single point.
+                                if (newRange.endInclusive - newRange.start < gap) {
+                                    if (newRange.start > rangeDraft.start) {
+                                        // Left thumb moved up past the gap - clamp it
+                                        val clamped = (newRange.endInclusive - gap).coerceAtLeast(sliderMin)
+                                        rangeDraft = clamped..newRange.endInclusive
+                                    } else {
+                                        // Right thumb moved down past the gap - clamp it
+                                        val clamped = (newRange.start + gap).coerceAtMost(sliderMax)
+                                        rangeDraft = newRange.start..clamped
+                                    }
+                                } else {
+                                    rangeDraft = newRange
+                                }
                             },
-                            range = if (isMmol) 1.0f..6.0f else 18f..108f,
-                            unitLabel = unitLabel
+                            onValueChangeFinished = {
+                                val lowMmol = if (isMmol) rangeDraft.start.toDouble() else rangeDraft.start.toDouble() / 18.0
+                                val highMmol = if (isMmol) rangeDraft.endInclusive.toDouble() else rangeDraft.endInclusive.toDouble() / 18.0
+                                onLowThresholdChange(lowMmol)
+                                onHighThresholdChange(highMmol)
+                            },
+                            valueRange = sliderMin..sliderMax,
+                            colors = SliderDefaults.colors(
+                                activeTrackColor = MaterialTheme.colorScheme.primary
+                            )
                         )
                         Spacer(modifier = Modifier.height(12.dp))
 
@@ -583,38 +641,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
-    }
-}
-
-@Composable
-private fun ThresholdSlider(
-    label: String,
-    value: Double,
-    onValueChange: (Float) -> Unit,
-    range: ClosedFloatingPointRange<Float>,
-    unitLabel: String
-) {
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(label, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium))
-            Text(
-                String.format("%.1f %s", value, unitLabel),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-        Slider(
-            value = value.toFloat(),
-            onValueChange = onValueChange,
-            valueRange = range,
-            colors = SliderDefaults.colors(
-                activeTrackColor = MaterialTheme.colorScheme.primary
-            )
-        )
     }
 }
 
