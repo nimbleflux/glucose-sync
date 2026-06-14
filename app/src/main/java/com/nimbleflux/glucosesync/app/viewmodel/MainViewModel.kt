@@ -36,11 +36,13 @@ import kotlinx.coroutines.sync.withLock
 data class MainUiState(
     val isLoggedIn: Boolean = false,
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val glucose: Double? = null,
     val glucoseUnit: String = "mmol/L",
     val trend: String = "",
     val lastUpdate: Long? = null,
     val error: String? = null,
+    val refreshError: String? = null,
     val realname: String = "",
     val sensorActive: Boolean = false,
     val isDemo: Boolean = false,
@@ -381,13 +383,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val p = provider ?: return
         viewModelScope.launch {
             refreshMutex.withLock {
-                _uiState.update { it.copy(isLoading = true, error = null) }
+                // Distinguish initial-load from silent refresh so we don't wipe
+                // the dashboard every 60s when the auto-refresh fires.
+                val hasPriorData = _uiState.value.glucose != null
+                _uiState.update {
+                    it.copy(
+                        isLoading = !hasPriorData,
+                        isRefreshing = hasPriorData,
+                        error = null,
+                        refreshError = null
+                    )
+                }
                 coordinator.fetchAndProcess(p, _uiState.value.history)
                     .onSuccess { processed ->
                         val snapshot = processed.snapshot
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
+                                isRefreshing = false,
                                 glucose = snapshot.glucose,
                                 lastUpdate = snapshot.timestamp,
                                 sensorActive = snapshot.sensorActive,
@@ -421,7 +434,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 else -> e.message ?: "Could not fetch data"
                             }
                         }
-                        _uiState.update { it.copy(isLoading = false, error = msg) }
+                        // If we already have data on screen, treat this as a
+                        // transient refresh error (Snackbar) rather than wiping
+                        // the dashboard with a full-screen error.
+                        val hasPriorData = _uiState.value.glucose != null
+                        _uiState.update {
+                            if (hasPriorData) {
+                                it.copy(isLoading = false, isRefreshing = false, refreshError = msg)
+                            } else {
+                                it.copy(isLoading = false, isRefreshing = false, error = msg)
+                            }
+                        }
                     }
             }
         }

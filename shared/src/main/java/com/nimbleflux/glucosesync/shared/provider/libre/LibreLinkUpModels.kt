@@ -86,7 +86,7 @@ data class LibreSensor(
 @Serializable
 data class LibreGlucoseMeasurement(
     val FactoryTimestamp: String? = null,
-    val Timestamp: String? = null    ,
+    val Timestamp: String? = null,
     val type: Int? = null,
     val ValueInMgPerDl: Int? = null,
     val Value: Double? = null,

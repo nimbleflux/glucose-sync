@@ -26,7 +26,6 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import okhttp3.MediaType.Companion.toMediaType
-import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
@@ -176,7 +175,7 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
     override suspend fun fetchGlucose(): Result<GlucoseSnapshot> {
         return try {
             val service = api ?: return Result.failure(GlucoseError.NotLoggedIn)
-            val param = buildTodayParam()
+            val param = buildHistoryParam()
             val response = service.getStatus(monitorUid, param)
             if (response.error != 0 || response.data == null) {
                 Result.failure(GlucoseError.ServerError(response.error, "Status failed"))
@@ -311,11 +310,19 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
             .create(MedtrumApi::class.java)
     }
 
-    private fun buildTodayParam(): String {
+    private fun buildHistoryParam(): String {
         val zone = ZoneId.systemDefault()
-        val startOfDay = LocalDate.now(zone).atStartOfDay(zone).toEpochSecond()
-        val endOfDay = startOfDay + 86399
-        val paramJson = """{"ts":[$startOfDay,$endOfDay],"tz":0}"""
+        // Rolling 24h window instead of "today from 00:00" so the chart
+        // shows last-24h data correctly even before midnight. Add a small
+        // buffer (1 minute into the future) so we don't miss the latest
+        // reading when the request crosses the exact timestamp boundary.
+        val now = java.time.Instant.now().epochSecond
+        val end = now + 60
+        val start = now - 86_400
+        // Medtrum's API expects tz as seconds east of UTC. Use the actual
+        // offset for the local zone, including DST, instead of hard-coded 0.
+        val tzOffsetSec = zone.rules.getOffset(java.time.Instant.ofEpochSecond(now)).totalSeconds
+        val paramJson = """{"ts":[$start,$end],"tz":$tzOffsetSec}"""
         return Base64.encodeToString(paramJson.toByteArray(), Base64.NO_WRAP)
     }
 }

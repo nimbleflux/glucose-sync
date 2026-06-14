@@ -121,12 +121,18 @@ class GlucoseAlertManager private constructor(private val context: Context) {
             .setContentText(text)
             .setStyle(Notification.BigTextStyle().bigText(text))
             .setCategory(Notification.CATEGORY_ALARM)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setContentIntent(tapIntent)
 
-        if (overrideDnd) {
-            builder.setFullScreenIntent(tapIntent, true)
-        }
+        // Note: we deliberately do NOT call setFullScreenIntent() here.
+        // Full-screen intents are designed for incoming-call-style
+        // takeovers - they wake the screen, bypass the lock screen, and
+        // launch the activity directly. For a CGM alert the right
+        // behaviour is a high-priority notification that sounds/vibrates
+        // and shows on the lock screen, but lets the user decide whether
+        // to open the app. IMPORTANCE_HIGH + CATEGORY_ALARM + bypassDnd
+        // already deliver that.
 
         nm.notify(id, builder.build())
     }

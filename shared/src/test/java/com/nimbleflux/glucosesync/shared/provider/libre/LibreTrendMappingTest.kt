@@ -9,22 +9,21 @@ class LibreTrendMappingTest {
 
     private val provider = LibreLinkUpProvider(android.app.Application())
 
+    /**
+     * LibreLinkUp trend arrow values (community-documented):
+     *   1 = rising rapidly   2 = rising         3 = rising slowly
+     *   4 = stable           5 = falling slowly 6 = falling
+     *   7 = falling rapidly  0/else = unknown
+     */
     @Test
-    fun mapTrend_publishedServerValues_1_through_5() {
-        // The five values LibreLinkUp documents today.
+    fun mapTrend_fullServerRange_1_through_7() {
         assertEquals(TrendArrow.RISING_RAPIDLY, provider.mapTrend(1))
         assertEquals(TrendArrow.RISING, provider.mapTrend(2))
-        assertEquals(TrendArrow.STABLE, provider.mapTrend(3))
-        assertEquals(TrendArrow.FALLING, provider.mapTrend(4))
-        assertEquals(TrendArrow.FALLING_RAPIDLY, provider.mapTrend(5))
-    }
-
-    @Test
-    fun mapTrend_defensiveValues_6_and_7_mapToSlowlyVariants() {
-        // Not documented today; mapped defensively in case a future API
-        // revision emits them.
-        assertEquals(TrendArrow.RISING_SLOWLY, provider.mapTrend(6))
-        assertEquals(TrendArrow.FALLING_SLOWLY, provider.mapTrend(7))
+        assertEquals(TrendArrow.RISING_SLOWLY, provider.mapTrend(3))
+        assertEquals(TrendArrow.STABLE, provider.mapTrend(4))
+        assertEquals(TrendArrow.FALLING_SLOWLY, provider.mapTrend(5))
+        assertEquals(TrendArrow.FALLING, provider.mapTrend(6))
+        assertEquals(TrendArrow.FALLING_RAPIDLY, provider.mapTrend(7))
     }
 
     @Test
