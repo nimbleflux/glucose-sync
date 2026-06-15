@@ -98,6 +98,7 @@ class XdripBroadcastProvider(
         }
     }
 
+    @Suppress("UnspecifiedRegisterReceiverFlag")
     fun enableBroadcasts() {
         if (receiverRegistered) return
         val filter = IntentFilter(ACTION_BG_READING)
@@ -107,6 +108,9 @@ class XdripBroadcastProvider(
             // silently block all xDrip+ broadcasts.
             context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
         } else {
+            // API 26-32: the flag parameter exists but RECEIVER_EXPORTED
+            // constant doesn't. All receivers are effectively exported
+            // on these API levels, so the plain overload is correct.
             context.registerReceiver(receiver, filter)
         }
         receiverRegistered = true
