@@ -84,6 +84,8 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
             }
         } catch (e: java.io.IOException) {
             Result.failure(GlucoseError.NetworkError(e))
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(GlucoseError.Unknown(e.message ?: "Login failed", e))
         }
@@ -237,6 +239,8 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
             }
         } catch (e: java.io.IOException) {
             Result.failure(GlucoseError.NetworkError(e))
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(GlucoseError.Unknown(e.message ?: "Fetch failed", e))
         }

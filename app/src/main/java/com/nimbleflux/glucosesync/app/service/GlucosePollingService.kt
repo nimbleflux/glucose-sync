@@ -228,7 +228,11 @@ class GlucosePollingService : android.app.Service() {
                     }
                 }.onFailure { e ->
                     if (BuildConfig.DEBUG) Log.e(TAG, "Polling error: ${e.message}")
-                    lastFetchError = e.message
+                    // Don't surface coroutine cancellation as a fetch error -
+                    // it's a lifecycle signal, not an actual API failure.
+                    if (e !is kotlin.coroutines.cancellation.CancellationException) {
+                        lastFetchError = e.message?.take(100)
+                    }
                     val shouldReauth = when (e) {
                         is GlucoseError.SessionExpired -> true
                         is GlucoseError.ServerError -> e.code == 401 || e.code == 403

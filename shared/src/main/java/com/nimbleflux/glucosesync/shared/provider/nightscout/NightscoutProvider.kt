@@ -73,6 +73,8 @@ class NightscoutProvider(
             )
         } catch (e: java.io.IOException) {
             Result.failure(GlucoseError.NetworkError(e))
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(GlucoseError.Unknown(e.message ?: "Login failed", e))
         }
@@ -131,6 +133,8 @@ class NightscoutProvider(
             )
         } catch (e: java.io.IOException) {
             Result.failure(GlucoseError.NetworkError(e))
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(GlucoseError.Unknown(e.message ?: "Fetch failed", e))
         }
