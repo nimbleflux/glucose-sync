@@ -62,4 +62,8 @@ dependencies {
     implementation(libs.play.services.wearable)
     implementation(libs.wear.watchface.complications.data)
     implementation(libs.wear.watchface.complications.data.source)
+    implementation(libs.wear.tiles)
+    implementation(libs.protolayout)
+    implementation(libs.protolayout.material)
+    implementation("com.google.guava:guava:33.4.8-jre")
 }
