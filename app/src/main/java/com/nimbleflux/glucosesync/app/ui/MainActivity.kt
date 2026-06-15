@@ -197,6 +197,7 @@ class MainActivity : ComponentActivity() {
                             alerts = state.alerts,
                             windowHours = state.historyWindowHours,
                             onWindowHoursChange = { viewModel.setHistoryWindowHours(it) },
+                            providerId = state.selectedProviderId,
                             onRefresh = { viewModel.refreshGlucose() },
                             onSettings = { viewModel.showSettings() },
                             onInstallWearApp = { viewModel.openWatchPlayStore() },
