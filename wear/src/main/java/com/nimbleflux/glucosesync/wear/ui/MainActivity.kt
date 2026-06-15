@@ -8,6 +8,7 @@ import androidx.compose.animation.core.animate
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -65,6 +66,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val state by repo.state.collectAsState(initial = WatchGlucoseState())
+            var showTilePreview by remember { mutableStateOf(false) }
 
             RequestFreshDataOnResume()
 
@@ -77,8 +79,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            if (state.glucose > 0.0 && !state.isStale) {
-                GlucoseDashboard(state, ::requestFreshData)
+            if (showTilePreview) {
+                TilePreviewScreen(state) { showTilePreview = false }
+            } else if (state.glucose > 0.0 && !state.isStale) {
+                GlucoseDashboard(state, ::requestFreshData, onShowTilePreview = {
+                    showTilePreview = true
+                })
             } else if (state.glucose > 0.0 && state.isStale) {
                 StaleGlucoseScreen(state, ::requestFreshData)
             } else {
@@ -138,7 +144,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun GlucoseDashboard(state: WatchGlucoseState, onRefresh: () -> Unit) {
+private fun GlucoseDashboard(
+    state: WatchGlucoseState,
+    onRefresh: () -> Unit,
+    onShowTilePreview: () -> Unit = {}
+) {
     val listState = rememberScalingLazyListState()
     var refreshing by remember { mutableStateOf(false) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
@@ -187,6 +197,19 @@ private fun GlucoseDashboard(state: WatchGlucoseState, onRefresh: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             item { GlucoseHero(state) }
+
+            if (BuildConfig.DEBUG) {
+                item {
+                    Chip(
+                        onClick = onShowTilePreview,
+                        label = { Text("Preview Tile", fontSize = 11.sp) },
+                        colors = ChipDefaults.chipColors(
+                            backgroundColor = MaterialTheme.colors.primary
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
 
             if (state.history.size >= 4) {
                 item {
@@ -665,6 +688,67 @@ private fun WatchSparkline(
             val label = String.format("%d:%02d", cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
             drawContext.canvas.nativeCanvas.drawText(label, x, h + labelArea - 2.dp.toPx(), timeLabelPaint)
             t += stepSec
+        }
+    }
+}
+
+@Composable
+private fun TilePreviewScreen(state: WatchGlucoseState, onClose: () -> Unit) {
+    val inRange = state.glucose in state.lowThreshold..state.highThreshold
+    val valueColor = if (state.glucose <= 0.0) {
+        MaterialTheme.colors.onSurfaceVariant
+    } else if (inRange) {
+        Color(0xFF66BB6A)
+    } else {
+        Color(0xFFEF5350)
+    }
+
+    val glucoseText = if (state.glucose <= 0.0) {
+        "No data"
+    } else if (state.unit == "mg/dL") {
+        String.format("%.0f %s", state.glucose * 18, state.unit)
+    } else {
+        String.format("%.1f %s", state.glucose, state.unit)
+    }
+
+    val now = System.currentTimeMillis() / 1000
+    val ageMin = ((now - state.timestamp) / 60).toInt().coerceAtLeast(0)
+    val ageText = if (state.timestamp == 0L) "Waiting for phone" else if (ageMin < 1) "now" else "${ageMin}m ago"
+    val trendText = state.trend.ifBlank { "" }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable { onClose() },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "Glucose",
+                fontSize = 12.sp,
+                color = MaterialTheme.colors.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                glucoseText,
+                fontSize = 40.sp,
+                fontWeight = FontWeight.Bold,
+                color = valueColor
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                "$trendText  $ageText",
+                fontSize = 13.sp,
+                color = MaterialTheme.colors.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                "Tap to close",
+                fontSize = 10.sp,
+                color = MaterialTheme.colors.onSurfaceVariant.copy(alpha = 0.5f)
+            )
         }
     }
 }
