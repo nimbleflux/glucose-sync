@@ -102,7 +102,10 @@ class XdripBroadcastProvider(
         if (receiverRegistered) return
         val filter = IntentFilter(ACTION_BG_READING)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            // RECEIVER_EXPORTED: xDrip+ is a different app, so we must
+            // allow external broadcasts. Using NOT_EXPORTED here would
+            // silently block all xDrip+ broadcasts.
+            context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
         } else {
             context.registerReceiver(receiver, filter)
         }
