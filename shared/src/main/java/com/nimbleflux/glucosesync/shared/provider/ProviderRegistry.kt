@@ -5,6 +5,7 @@ import com.nimbleflux.glucosesync.shared.provider.dexcom.DexcomProvider
 import com.nimbleflux.glucosesync.shared.provider.libre.LibreLinkUpProvider
 import com.nimbleflux.glucosesync.shared.provider.medtrum.MedtrumProvider
 import com.nimbleflux.glucosesync.shared.provider.nightscout.NightscoutProvider
+import com.nimbleflux.glucosesync.shared.provider.xdrip.XdripBroadcastProvider
 
 object ProviderRegistry {
 
@@ -43,11 +44,11 @@ object ProviderRegistry {
         ),
         ProviderConfig(
             id = "xdrip",
-            displayName = "xDrip+",
-            description = "Read from xDrip+ on this device",
+            displayName = "xDrip+ (Direct Sensor)",
+            description = "Read directly from your sensor via xDrip+ — no cloud needed",
             authType = AuthType.NONE,
-            available = false,
-            icon = "\u26A1"
+            available = true,
+            icon = "\uD83D\uDC0D"
         )
     )
 
@@ -61,6 +62,7 @@ object ProviderRegistry {
             "libre_linkup" -> LibreLinkUpProvider(context, debug)
             "nightscout" -> NightscoutProvider(context, debug)
             "dexcom_share" -> DexcomProvider(context, debug)
+            "xdrip" -> XdripBroadcastProvider(context, debug)
             else -> throw IllegalArgumentException("Unknown provider: $id")
         }
     }

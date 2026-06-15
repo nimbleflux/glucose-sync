@@ -163,13 +163,19 @@ private fun ProviderCard(
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = MaterialTheme.shapes.small,
-                            color = MaterialTheme.colorScheme.primaryContainer
+                            color = if (config.id == "xdrip")
+                                MaterialTheme.colorScheme.tertiaryContainer
+                            else
+                                MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Text(
-                                stringResource(R.string.badge_supported),
+                                stringResource(if (config.id == "xdrip") R.string.badge_direct else R.string.badge_supported),
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                color = if (config.id == "xdrip")
+                                    MaterialTheme.colorScheme.onTertiaryContainer
+                                else
+                                    MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
                     }

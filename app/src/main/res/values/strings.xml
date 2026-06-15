@@ -40,6 +40,7 @@
     <string name="separator_or">  or  </string>
     <string name="try_demo">Try demo</string>
     <string name="badge_supported">Supported</string>
+    <string name="badge_direct">Direct · No cloud</string>
     <string name="coming_soon">Coming soon</string>
 
     <string name="settings_title">Settings</string>

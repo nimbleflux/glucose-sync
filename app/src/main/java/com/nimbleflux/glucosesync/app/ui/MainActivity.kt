@@ -140,6 +140,16 @@ class MainActivity : ComponentActivity() {
                             onBack = { viewModel.cancelPatientPicker() }
                         )
                     }
+                    state.selectedProviderId == "xdrip" && !state.isLoggedIn -> {
+                        BackHandler { viewModel.showProviderPicker() }
+                        XdripSetupScreen(
+                            checking = state.xdripChecking,
+                            checkResult = state.xdripCheckResult,
+                            onCheckConnection = { viewModel.checkXdripConnection() },
+                            onConnected = { },
+                            onBack = { viewModel.showProviderPicker() }
+                        )
+                    }
                     state.isLoggedIn -> {
                         GlucoseScreen(
                             glucose = state.glucose,
