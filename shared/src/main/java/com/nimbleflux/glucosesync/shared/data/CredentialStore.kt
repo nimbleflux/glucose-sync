@@ -51,6 +51,8 @@ class CredentialStore(context: Context) {
         const val MEDTRUM_COOKIES = "medtrum_cookies"
         const val NIGHTSCOUT_URL = "nightscout_url"
         const val NIGHTSCOUT_TOKEN = "nightscout_token"
+        const val DEXCOM_SESSION = "dexcom_session"
+        const val DEXCOM_URL = "dexcom_url"
     }
 
     suspend fun saveCredentials(creds: Credentials) {
@@ -190,4 +192,15 @@ class CredentialStore(context: Context) {
     fun getNightscoutUrl(): String? = prefs.getString(Keys.NIGHTSCOUT_URL, null)
 
     fun getNightscoutToken(): String? = prefs.getString(Keys.NIGHTSCOUT_TOKEN, null)
+
+    fun saveDexcomSession(token: String, url: String) {
+        prefs.edit()
+            .putString(Keys.DEXCOM_SESSION, token)
+            .putString(Keys.DEXCOM_URL, url)
+            .apply()
+    }
+
+    fun getDexcomToken(): String? = prefs.getString(Keys.DEXCOM_SESSION, null)
+
+    fun getDexcomUrl(): String? = prefs.getString(Keys.DEXCOM_URL, null)
 }

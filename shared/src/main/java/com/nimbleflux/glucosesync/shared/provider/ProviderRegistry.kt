@@ -1,6 +1,7 @@
 package com.nimbleflux.glucosesync.shared.provider
 
 import android.content.Context
+import com.nimbleflux.glucosesync.shared.provider.dexcom.DexcomProvider
 import com.nimbleflux.glucosesync.shared.provider.libre.LibreLinkUpProvider
 import com.nimbleflux.glucosesync.shared.provider.medtrum.MedtrumProvider
 import com.nimbleflux.glucosesync.shared.provider.nightscout.NightscoutProvider
@@ -34,10 +35,10 @@ object ProviderRegistry {
         ),
         ProviderConfig(
             id = "dexcom_share",
-            displayName = "Dexcom Share",
-            description = "Connect via Dexcom Share cloud",
+            displayName = "Dexcom",
+            description = "Connect via Dexcom Share — works with G6, G7, ONE, and Stelo",
             authType = AuthType.USERNAME_PASSWORD,
-            available = false,
+            available = true,
             icon = "\uD83D\uDCE1"
         ),
         ProviderConfig(
@@ -59,6 +60,7 @@ object ProviderRegistry {
             "medtrum" -> MedtrumProvider(context, debug)
             "libre_linkup" -> LibreLinkUpProvider(context, debug)
             "nightscout" -> NightscoutProvider(context, debug)
+            "dexcom_share" -> DexcomProvider(context, debug)
             else -> throw IllegalArgumentException("Unknown provider: $id")
         }
     }
