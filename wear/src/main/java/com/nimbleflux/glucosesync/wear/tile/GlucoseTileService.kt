@@ -90,7 +90,7 @@ class GlucoseTileService : TileService() {
                 LayoutElementBuilders.FontStyle.Builder()
                     .setSize(DimensionBuilders.SpProp.Builder().setValue(sizeSp).build())
                     .setColor(ColorBuilders.ColorProp.Builder(color).build())
-                    .setWeight(if (bold) 700 else 400)
+                    .setWeight(LayoutElementBuilders.FONT_WEIGHT_BOLD)
                     .build()
             )
             .build()
