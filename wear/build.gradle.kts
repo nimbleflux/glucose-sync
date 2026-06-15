@@ -65,5 +65,5 @@ dependencies {
     implementation(libs.wear.tiles)
     implementation(libs.protolayout)
     implementation(libs.protolayout.material)
-    implementation("com.google.guava:guava:33.4.8-jre")
+    implementation("com.google.guava:guava:33.6.0-jre")
 }
