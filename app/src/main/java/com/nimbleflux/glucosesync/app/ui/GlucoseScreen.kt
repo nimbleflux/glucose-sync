@@ -173,7 +173,9 @@ fun GlucoseScreen(
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
 
-                UserInfoRow(realname, isDemo)
+                if (realname.isNotBlank() || isDemo) {
+                    UserInfoRow(realname, isDemo)
+                }
 
             if (showWearInstallBanner) {
                 Spacer(modifier = Modifier.height(8.dp))
