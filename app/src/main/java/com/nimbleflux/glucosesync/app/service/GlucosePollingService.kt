@@ -185,7 +185,7 @@ class GlucosePollingService : android.app.Service() {
                 .onSuccess { processed ->
                     val snapshot = processed.snapshot
                     val glucose = snapshot.glucose
-                    if (glucose != null) {
+                    if (glucose != null && glucose > 0.0) {
                         lastFetchError = null
                         if (BuildConfig.DEBUG) Log.d(TAG, "Glucose: $glucose at ${snapshot.timestamp}")
 

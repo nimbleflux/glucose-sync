@@ -270,25 +270,35 @@ class GlucoseAlertManager private constructor(private val context: Context) {
         vibratePattern: LongArray,
         overrideDnd: Boolean
     ) {
+        // Don't claim DND bypass if the app doesn't actually have the
+        // permission. The channel would be created with bypassDnd=true
+        // but the system silently ignores it, giving the user a false
+        // sense of security.
+        val hasDndAccess = nm.isNotificationPolicyAccessGranted
+        val effectiveOverrideDnd = overrideDnd && hasDndAccess
+
         val existing = nm.getNotificationChannel(channelId)
         if (existing != null) {
-            if (existing.canBypassDnd() != overrideDnd) {
+            if (existing.canBypassDnd() != effectiveOverrideDnd) {
                 nm.deleteNotificationChannel(channelId)
             } else {
                 return
             }
         }
 
-        // Prune orphaned sibling channels of the same prefix. Every time
-        // the user changes sound/vibrate/duration settings, ensureChannel
-        // creates a new channel with a fresh suffix - without this prune
-        // step the channel list would grow without bound (one per settings
-        // combination the user ever tried). We only touch channels that
-        // share this channel's prefix (glucose_high_* or glucose_low_*).
-        val prefix = channelId.substringBeforeLast('_', "")
-        if (prefix.isNotEmpty()) {
+        // Prune orphaned sibling channels. Channel IDs follow the patterns:
+        //   glucose_high_sXvY, glucose_high_dnd_sXvY
+        //   glucose_low_sXvY,  glucose_low_dnd_sXvY
+        // Use a fixed base prefix (glucose_high or glucose_low) so both
+        // DND and non-DND variants are pruned when the suffix changes.
+        val basePrefix = when {
+            channelId.startsWith("glucose_high") -> "glucose_high"
+            channelId.startsWith("glucose_low") -> "glucose_low"
+            else -> ""
+        }
+        if (basePrefix.isNotEmpty()) {
             nm.notificationChannels.forEach { ch ->
-                if (ch.id != channelId && ch.id.startsWith(prefix + "_")) {
+                if (ch.id != channelId && ch.id.startsWith(basePrefix + "_")) {
                     nm.deleteNotificationChannel(ch.id)
                 }
             }
@@ -308,7 +318,7 @@ class GlucoseAlertManager private constructor(private val context: Context) {
             if (sound != null) setSound(sound, audioAttrs) else setSound(null, null)
             enableVibration(true)
             vibrationPattern = vibratePattern
-            setBypassDnd(overrideDnd)
+            setBypassDnd(effectiveOverrideDnd)
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             setShowBadge(true)
         }

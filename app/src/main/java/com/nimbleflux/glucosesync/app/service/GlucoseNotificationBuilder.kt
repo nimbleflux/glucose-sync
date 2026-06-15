@@ -24,7 +24,7 @@ object GlucoseNotificationBuilder {
         batteryPercent: Double?,
         timestamp: Long
     ): Notification {
-        val glucoseVal = glucose ?: return buildDefault(context, channelId)
+        val glucoseVal = glucose?.takeIf { it > 0.0 } ?: return buildDefault(context, channelId)
 
         val isMmol = unit == "mmol/L"
         val displayGlucose = if (isMmol) glucoseVal else glucoseVal * 18
