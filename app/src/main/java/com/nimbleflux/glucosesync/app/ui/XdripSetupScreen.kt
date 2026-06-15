@@ -115,7 +115,7 @@ fun XdripSetupScreen(
             ) {
                 OutlinedButton(
                     onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://xdrip.readthedocs.io"))
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/NightscoutFoundation/xDrip"))
                         context.startActivity(intent)
                     },
                     contentPadding = PaddingValues(horizontal = 12.dp)
