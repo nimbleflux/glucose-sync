@@ -143,7 +143,8 @@ class GlucoseAlertManager private constructor(private val context: Context) {
     fun checkStaleAlert(
         lastReadingEpochSec: Long,
         staleThresholdMinutes: Int = 15,
-        alertsEnabled: Boolean
+        alertsEnabled: Boolean,
+        lastFetchError: String? = null
     ) {
         if (!alertsEnabled) return
         val nowSec = System.currentTimeMillis() / 1000
@@ -161,7 +162,11 @@ class GlucoseAlertManager private constructor(private val context: Context) {
 
         ensureStaleChannel()
         val ageMinutes = (ageSec / 60L).toInt()
-        val text = context.getString(R.string.alert_stale_text, ageMinutes)
+        val text = if (lastFetchError != null) {
+            context.getString(R.string.alert_stale_text_with_error, ageMinutes, lastFetchError)
+        } else {
+            context.getString(R.string.alert_stale_text, ageMinutes)
+        }
         val tapIntent = PendingIntent.getActivity(
             context, 0,
             Intent(context, MainActivity::class.java),

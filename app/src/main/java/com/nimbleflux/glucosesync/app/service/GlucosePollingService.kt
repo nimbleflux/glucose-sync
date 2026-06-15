@@ -43,6 +43,7 @@ class GlucosePollingService : android.app.Service() {
     private var lastUnit: String = "mmol/L"
     private var lastBattery: Double? = null
     private var lastTimestamp: Long = 0L
+    private var lastFetchError: String? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
     private val messageListener = MessageClient.OnMessageReceivedListener { messageEvent ->
@@ -185,6 +186,7 @@ class GlucosePollingService : android.app.Service() {
                     val snapshot = processed.snapshot
                     val glucose = snapshot.glucose
                     if (glucose != null) {
+                        lastFetchError = null
                         if (BuildConfig.DEBUG) Log.d(TAG, "Glucose: $glucose at ${snapshot.timestamp}")
 
                         accumulatedHistory.clear()
@@ -221,9 +223,12 @@ class GlucosePollingService : android.app.Service() {
                             vibrateEnabled = vibrate,
                             vibrateDurationSeconds = vibrateDuration
                         )
+                    } else {
+                        lastFetchError = "Sensor returned no glucose"
                     }
                 }.onFailure { e ->
                     if (BuildConfig.DEBUG) Log.e(TAG, "Polling error: ${e.message}")
+                    lastFetchError = e.message
                     val shouldReauth = when (e) {
                         is GlucoseError.SessionExpired -> true
                         is GlucoseError.ServerError -> e.code == 401 || e.code == 403
@@ -254,7 +259,8 @@ class GlucosePollingService : android.app.Service() {
                 alertManager.checkStaleAlert(
                     lastReadingEpochSec = lastTimestamp,
                     staleThresholdMinutes = 15,
-                    alertsEnabled = alertsEnabled
+                    alertsEnabled = alertsEnabled,
+                    lastFetchError = lastFetchError
                 )
             }
         }

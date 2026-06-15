@@ -100,6 +100,7 @@
     <string name="alert_threshold_text">%1$.1f %2$s — %3$s threshold of %4$.1f</string>
     <string name="alert_stale_title">No recent readings</string>
     <string name="alert_stale_text">No glucose reading for %1$d minutes. Check your sensor and phone connection.</string>
+    <string name="alert_stale_text_with_error">No glucose reading for %1$d minutes. Last error: %2$s</string>
     <string name="error_no_patients">No patients found</string>
     <string name="error_no_internet">No internet connection</string>
     <string name="error_no_sensor">No active sensor</string>
