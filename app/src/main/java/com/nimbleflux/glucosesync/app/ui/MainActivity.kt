@@ -39,19 +39,33 @@ class MainActivity : ComponentActivity() {
             val notificationLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestPermission()
             ) { granted ->
-                // Start the FGS regardless of the user's choice. A foreground
-                // service can run without POST_NOTIFICATIONS - it just won't
-                // be able to show alerts. The user gets an in-app banner
-                // (see GlucoseScreen) explaining the situation and offering
-                // a retry. Previously, denial broke polling entirely.
                 if (state.isLoggedIn) {
                     startPollingService(context)
                 }
             }
 
-            // Check POST_NOTIFICATIONS on every recomposition so the banner
-            // disappears the moment the user grants the permission via sys settings.
-            val notificationsDenied = remember(state.isLoggedIn) {
+            // Re-check notification permission whenever the app returns to
+            // the foreground. The user may have granted it via the system
+            // permission dialog, system Settings, or the "Grant" button in
+            // our banner — any of those paths resumes the app and should
+            // make the banner disappear if permission was granted.
+            val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+            var resumeTick by remember { mutableIntStateOf(0) }
+            LaunchedEffect(lifecycleOwner) {
+                val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                    if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                        resumeTick++
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                try {
+                    kotlinx.coroutines.awaitCancellation()
+                } finally {
+                    lifecycleOwner.lifecycle.removeObserver(observer)
+                }
+            }
+
+            val notificationsDenied = remember(state.isLoggedIn, resumeTick) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     ContextCompat.checkSelfPermission(
                         context, Manifest.permission.POST_NOTIFICATIONS
@@ -140,6 +154,16 @@ class MainActivity : ComponentActivity() {
                             onBack = { viewModel.cancelPatientPicker() }
                         )
                     }
+                    state.selectedProviderId == "xdrip" && !state.isLoggedIn -> {
+                        BackHandler { viewModel.showProviderPicker() }
+                        XdripSetupScreen(
+                            checking = state.xdripChecking,
+                            checkResult = state.xdripCheckResult,
+                            onCheckConnection = { viewModel.checkXdripConnection() },
+                            onConnected = { },
+                            onBack = { viewModel.showProviderPicker() }
+                        )
+                    }
                     state.isLoggedIn -> {
                         GlucoseScreen(
                             glucose = state.glucose,
@@ -173,6 +197,7 @@ class MainActivity : ComponentActivity() {
                             alerts = state.alerts,
                             windowHours = state.historyWindowHours,
                             onWindowHoursChange = { viewModel.setHistoryWindowHours(it) },
+                            providerId = state.selectedProviderId,
                             onRefresh = { viewModel.refreshGlucose() },
                             onSettings = { viewModel.showSettings() },
                             onInstallWearApp = { viewModel.openWatchPlayStore() },

@@ -63,7 +63,7 @@ fun GlucoseChart(
     val paddingLeft = 44f
     val paddingRight = 12f
     val paddingTop = 16f
-    val paddingBottom = 28f
+    val paddingBottom = textSizePx + 12f  // room for x-axis time labels
 
     val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
 

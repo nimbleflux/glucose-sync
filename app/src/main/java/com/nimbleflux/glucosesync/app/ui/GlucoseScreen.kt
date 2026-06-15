@@ -1,5 +1,7 @@
 package com.nimbleflux.glucosesync.app.ui
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -7,9 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -58,16 +58,33 @@ fun GlucoseScreen(
     alerts: List<AlertEntry>,
     windowHours: Int = 24,
     onWindowHoursChange: (Int) -> Unit = {},
+    providerId: String? = null,
     onRefresh: () -> Unit,
     onSettings: () -> Unit,
     onInstallWearApp: () -> Unit,
     onDismissWearBanner: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = androidx.compose.ui.platform.LocalContext.current
     val refreshErrorString = refreshError
+
+    // Debug mock injection state (only used when BuildConfig.DEBUG and
+    // xDrip+ is the active provider).
+    var mockCounter by remember { mutableIntStateOf(0) }
+    var autoInject by remember { mutableStateOf(false) }
+    val showMockButton = com.nimbleflux.glucosesync.app.BuildConfig.DEBUG && providerId == "xdrip"
+
     LaunchedEffect(refreshErrorString) {
         refreshErrorString?.let {
             snackbarHostState.showSnackbar(it)
+        }
+    }
+
+    // Auto-inject mock readings every 15 seconds when toggled on.
+    LaunchedEffect(autoInject) {
+        while (autoInject) {
+            kotlinx.coroutines.delay(15_000)
+            sendMockXdripReading(context, mockCounter++)
         }
     }
 
@@ -113,6 +130,31 @@ fun GlucoseScreen(
                 )
             )
         },
+        floatingActionButton = {
+            if (showMockButton) {
+                ExtendedFloatingActionButton(
+                    onClick = { sendMockXdripReading(context, mockCounter++) },
+                    text = {
+                        Text(
+                            if (autoInject) "Auto" else "Inject",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    },
+                    icon = {
+                        Icon(
+                            Icons.Filled.Science,
+                            contentDescription = "Inject mock xDrip+ reading"
+                        )
+                    },
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = Modifier.combinedClickable(
+                        onClick = { sendMockXdripReading(context, mockCounter++) },
+                        onLongClick = { autoInject = !autoInject }
+                    )
+                )
+            }
+        },
         containerColor = MaterialTheme.colorScheme.surface
     ) { padding ->
         PullToRefreshBox(
@@ -131,7 +173,9 @@ fun GlucoseScreen(
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
 
-                UserInfoRow(realname, isDemo)
+                if (realname.isNotBlank() || isDemo) {
+                    UserInfoRow(realname, isDemo)
+                }
 
             if (showWearInstallBanner) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -827,4 +871,29 @@ private fun WearInstallBanner(onInstall: () -> Unit, onDismiss: () -> Unit) {
             }
         }
     }
+}
+
+/**
+ * Send a mock xDrip+ broadcast to test the xDrip+ provider on the emulator
+ * without having xDrip+ installed. Generates a realistic glucose pattern
+ * using a sine wave so trends (rising, falling, stable) are visible.
+ *
+ * Counter drives the sine wave: 0=stable, rising, peak, falling, trough, ...
+ */
+private fun sendMockXdripReading(context: android.content.Context, counter: Int) {
+    val t = counter * 0.4
+    val baseMgDl = 120.0
+    val amplitudeMgDl = 50.0
+    val glucoseMgDl = baseMgDl + amplitudeMgDl * kotlin.math.sin(t)
+    // Derivative of the sine -> gives a realistic slope (mg/dL per minute)
+    val slopeMgDlPerMin = amplitudeMgDl * 0.4 * kotlin.math.cos(t)
+    val deltaMgDl = slopeMgDlPerMin * 5.0 // approximate 5-min delta
+
+    val intent = android.content.Intent("com.eveningoutpost.dexdrip.BgReading").apply {
+        putExtra("bgValue", glucoseMgDl.toFloat())
+        putExtra("bgSlope", slopeMgDlPerMin)
+        putExtra("bgDelta", deltaMgDl.toFloat())
+        putExtra("bgTimestamp", System.currentTimeMillis())
+    }
+    context.sendBroadcast(intent)
 }

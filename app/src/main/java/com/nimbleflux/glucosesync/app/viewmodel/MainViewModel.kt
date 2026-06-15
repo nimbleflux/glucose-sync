@@ -76,7 +76,9 @@ data class MainUiState(
     val deltaMinutes: Int = 5,
     val alerts: List<AlertEntry> = emptyList(),
     val restoringSession: Boolean = true,
-    val settingsLoaded: Boolean = false
+    val settingsLoaded: Boolean = false,
+    val xdripChecking: Boolean = false,
+    val xdripCheckResult: Boolean? = null
 ) {
     val glucoseDisplay: Double?
         get() = glucose?.let { if (glucoseUnit == "mg/dL") it * 18 else it }
@@ -293,6 +295,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             refreshGlucose()
             startAutoRefresh()
+        }
+    }
+
+    fun checkXdripConnection() {
+        val p = provider ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(xdripChecking = true, xdripCheckResult = null) }
+            try {
+                p.login(ProviderCredentials.None)
+            } catch (_: Exception) { }
+            // Poll for up to 60 seconds waiting for the first broadcast
+            var found = false
+            for (i in 1..30) {
+                delay(2000)
+                if ((p as? com.nimbleflux.glucosesync.shared.provider.xdrip.XdripBroadcastProvider)?.hasReceivedReading() == true) {
+                    found = true
+                    break
+                }
+            }
+            if (found) {
+                credentialStore.saveSelectedProvider(p.id)
+                _uiState.update {
+                    it.copy(xdripChecking = false, xdripCheckResult = true)
+                }
+                // Give the setup screen a moment to show the success state
+                // before the isLoggedIn transition swaps to the dashboard
+                delay(1500)
+                _uiState.update { it.copy(isLoggedIn = true) }
+                refreshGlucose()
+                startAutoRefresh()
+            } else {
+                _uiState.update { it.copy(xdripChecking = false, xdripCheckResult = false) }
+            }
         }
     }
 
