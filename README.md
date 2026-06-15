@@ -92,6 +92,23 @@
 └── scripts/                # Release automation
 ```
 
+## Platform Strategy
+
+**GlucoseSync targets Wear OS and Android only. There are no plans for an iOS version.**
+
+Every major CGM manufacturer already ships a native Apple Watch app:
+- **Dexcom** — G7 app with complications, widgets, Live Activities
+- **LibreLink** — Apple Watch app with complications
+- **Medtrum** — EasySense for iOS with Apple Watch support
+
+On iOS, these official apps cover the smartwatch use case completely. Building
+a separate iOS companion app would replicate existing functionality with no
+added value for users.
+
+**Wear OS is different.** No major CGM manufacturer offers a Wear OS app.
+GlucoseSync is the only way to get glucose data on a Wear OS watch for
+Medtrum, Libre, Dexcom, and Nightscout users. This is our unique value.
+
 ## Tech Stack
 
 - **Kotlin** 2.1, **Jetpack Compose** (Material 3), **Wear Compose** 1.4
