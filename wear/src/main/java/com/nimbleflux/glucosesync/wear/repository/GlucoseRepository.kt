@@ -1,7 +1,14 @@
 package com.nimbleflux.glucosesync.wear.repository
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
+import com.nimbleflux.glucosesync.wear.complication.BatteryComplicationProviderService
+import com.nimbleflux.glucosesync.wear.complication.DeltaComplicationProviderService
+import com.nimbleflux.glucosesync.wear.complication.GlucoseComplicationProviderService
+import com.nimbleflux.glucosesync.wear.complication.GlucoseDeltaComplicationProviderService
+import com.nimbleflux.glucosesync.wear.complication.IobComplicationProviderService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -113,6 +120,34 @@ class GlucoseRepository private constructor(context: Context) {
             timeInRange, averageGlucose
         )
         saving = false
+        requestComplicationUpdate()
+    }
+
+    /**
+     * Proactively tell the system to re-request all complication data.
+     * Without this, complications only update on their fixed schedule
+     * (every 5 min via UPDATE_PERIOD_SECONDS). This makes complications
+     * update at the same time as the Wear OS app — whenever the phone
+     * pushes new data.
+     */
+    private fun requestComplicationUpdate() {
+        val services = listOf(
+            GlucoseComplicationProviderService::class.java,
+            GlucoseDeltaComplicationProviderService::class.java,
+            DeltaComplicationProviderService::class.java,
+            IobComplicationProviderService::class.java,
+            BatteryComplicationProviderService::class.java
+        )
+        services.forEach { cls ->
+            try {
+                ComplicationDataSourceUpdateRequester
+                    .create(appContext, ComponentName(appContext, cls))
+                    .requestUpdateAll()
+            } catch (_: Exception) {
+                // Complication system may not be ready (e.g., during boot).
+                // The fixed UPDATE_PERIOD_SECONDS fallback will catch up.
+            }
+        }
     }
 
     fun getGlucose(): Float = _state.value.glucose.toFloat()
