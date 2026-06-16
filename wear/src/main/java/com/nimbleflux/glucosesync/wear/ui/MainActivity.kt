@@ -38,6 +38,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.*
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.Wearable
@@ -256,6 +257,11 @@ private fun GlucoseDashboard(state: WatchGlucoseState, onRefresh: () -> Unit) {
                 )
             }
         }
+
+        PositionIndicator(
+            scalingLazyListState = listState,
+            modifier = Modifier
+        )
     }
 }
 
