@@ -121,41 +121,96 @@ class GlucoseRepository private constructor(context: Context) {
         )
         saving = false
         requestComplicationUpdate()
-        checkThresholdVibration(glucose)
+        checkThresholdAlert(glucose)
     }
 
     @Volatile
     private var lastVibrationTime: Long = 0L
 
-    private fun checkThresholdVibration(glucose: Double) {
+    private fun checkThresholdAlert(glucose: Double) {
         if (glucose <= 0.0) return
         val state = _state.value
-        val outOfRange = glucose < state.lowThreshold || glucose > state.highThreshold
-        if (!outOfRange) return
+        val isHigh = glucose > state.highThreshold
+        val isLow = glucose < state.lowThreshold
+        if (!isHigh && !isLow) return
 
-        // Throttle: only vibrate once every 5 minutes to avoid buzzing
+        // Throttle: only alert once every 5 minutes to avoid buzzing
         // on every reading when the sensor updates frequently.
         val now = System.currentTimeMillis()
         val repeatMs = 5 * 60_000L
         if (now - lastVibrationTime < repeatMs) return
         lastVibrationTime = now
 
+        // Vibrate
         try {
             val vibrator = appContext.getSystemService(android.content.Context.VIBRATOR_SERVICE)
                 as android.os.Vibrator
-            // Double-buzz pattern: two short pulses with a gap
             val pattern = longArrayOf(0, 200, 100, 200)
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                vibrator.vibrate(
-                    android.os.VibrationEffect.createWaveform(pattern, -1)
-                )
+                vibrator.vibrate(android.os.VibrationEffect.createWaveform(pattern, -1))
             } else {
                 @Suppress("DEPRECATION")
                 vibrator.vibrate(pattern, -1)
             }
-        } catch (_: Exception) {
-            // Vibrator not available on this device
+        } catch (_: Exception) { }
+
+        // Show a notification on the watch
+        try {
+            showWatchAlertNotification(glucose, isHigh, state)
+        } catch (_: Exception) { }
+    }
+
+    private fun showWatchAlertNotification(
+        glucose: Double,
+        isHigh: Boolean,
+        state: WatchGlucoseState
+    ) {
+        val nm = appContext.getSystemService(android.content.Context.NOTIFICATION_SERVICE)
+            as android.app.NotificationManager
+
+        val channelId = "watch_glucose_alert"
+        if (nm.getNotificationChannel(channelId) == null) {
+            val channel = android.app.NotificationChannel(
+                channelId,
+                "Glucose alerts",
+                android.app.NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "High and low glucose threshold alerts"
+                enableVibration(false) // we handle vibration ourselves
+                setShowBadge(true)
+            }
+            nm.createNotificationChannel(channel)
         }
+
+        val glucoseText = if (state.unit == "mg/dL") {
+            String.format("%.0f %s", glucose * 18, state.unit)
+        } else {
+            String.format("%.1f %s", glucose, state.unit)
+        }
+        val threshold = if (isHigh) state.highThreshold else state.lowThreshold
+        val thresholdText = if (state.unit == "mg/dL") {
+            String.format("%.0f", threshold * 18)
+        } else {
+            String.format("%.1f", threshold)
+        }
+        val comparison = if (isHigh) "above" else "below"
+        val title = if (isHigh) "Glucose is high" else "Glucose is low"
+
+        val tapIntent = android.app.PendingIntent.getActivity(
+            appContext, 0,
+            android.content.Intent(appContext, com.nimbleflux.glucosesync.wear.ui.MainActivity::class.java),
+            android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = android.app.Notification.Builder(appContext, channelId)
+            .setSmallIcon(com.nimbleflux.glucosesync.wear.R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText("$glucoseText — $comparison threshold of $thresholdText")
+            .setContentIntent(tapIntent)
+            .setAutoCancel(true)
+            .build()
+
+        nm.notify(2001, notification)
     }
 
     /**
