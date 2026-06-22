@@ -305,16 +305,7 @@ class GlucoseAlertManager private constructor(private val context: Context) {
         }
 
         val sound = if (soundEnabled) {
-            // When DND override is on, use TYPE_ALARM so the sound
-            // passes through DND's "Alarms only" policy. The audio
-            // attributes already use USAGE_ALARM — the ringtone URI
-            // must match or the system may mute it.
-            val ringtoneType = if (effectiveOverrideDnd) {
-                RingtoneManager.TYPE_ALARM
-            } else {
-                RingtoneManager.TYPE_NOTIFICATION
-            }
-            RingtoneManager.getDefaultUri(ringtoneType)
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         } else null
 
         val audioAttrs = AudioAttributes.Builder()
