@@ -74,6 +74,7 @@ data class MainUiState(
     val lastBolusTime: Long? = null,
     val remainingDose: Double? = null,
     val deltaMinutes: Int = 5,
+    val pollingIntervalMinutes: Int = 5,
     val alerts: List<AlertEntry> = emptyList(),
     val restoringSession: Boolean = true,
     val settingsLoaded: Boolean = false,
@@ -127,6 +128,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val vibrateDuration = settingsStore.getAlertVibrateDuration()
             val themeMode = settingsStore.getThemeMode()
             val deltaMinutes = settingsStore.getDeltaMinutes()
+            val pollingIntervalMinutes = settingsStore.getPollingIntervalMinutes()
             val wearBannerDismissed = settingsStore.getWearBannerDismissed()
             val historyWindowHours = settingsStore.getHistoryWindowHours()
             _uiState.update {
@@ -142,6 +144,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     alertVibrateDuration = vibrateDuration,
                     themeMode = themeMode,
                     deltaMinutes = deltaMinutes,
+                    pollingIntervalMinutes = pollingIntervalMinutes,
                     wearBannerDismissed = wearBannerDismissed,
                     historyWindowHours = historyWindowHours,
                     settingsLoaded = true
@@ -567,9 +570,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             settingsStore.setDeltaMinutes(minutes)
             _uiState.update { it.copy(deltaMinutes = minutes) }
-            if (_uiState.value.isLoggedIn && !_uiState.value.isDemo) {
-                refreshGlucose()
-            }
+        }
+    }
+
+    fun setPollingIntervalMinutes(minutes: Int) {
+        val valid = if (minutes in listOf(1, 2, 3, 5, 10)) minutes else 5
+        viewModelScope.launch {
+            settingsStore.setPollingIntervalMinutes(valid)
+            _uiState.update { it.copy(pollingIntervalMinutes = valid) }
         }
     }
 

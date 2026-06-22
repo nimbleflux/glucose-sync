@@ -48,6 +48,8 @@
     <string name="settings_glucose_unit_desc">Choose how glucose values are displayed</string>
     <string name="settings_delta_window">Delta window</string>
     <string name="settings_delta_window_desc">Time period for glucose change (delta) calculation</string>
+    <string name="settings_polling_interval">Background polling interval</string>
+    <string name="settings_polling_interval_desc">How often the app fetches new glucose data from the cloud</string>
     <string name="unit_mmol_description">Millimoles per liter</string>
     <string name="unit_mgdl_description">Milligrams per deciliter</string>
     <string name="settings_alerts">Alerts</string>
