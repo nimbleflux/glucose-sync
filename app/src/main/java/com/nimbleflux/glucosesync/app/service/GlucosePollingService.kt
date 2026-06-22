@@ -160,20 +160,17 @@ class GlucosePollingService : android.app.Service() {
                 } finally {
                     releaseWakeLock()
                 }
-                // Schedule a Doze-proof alarm to re-trigger the FGS in case
-                // the OS kills our process during the 5-min delay window.
-                // The alarm is a safety net; if the process is still alive
-                // when it fires, the receiver's startForegroundService is a
-                // no-op (just delivers a fresh onStartCommand we ignore).
+                val intervalMin = try { settingsStore.getPollingIntervalMinutes() } catch (_: Exception) { 5 }
+                val intervalMs = (intervalMin.coerceIn(1, 30) * 60_000L)
                 try {
                     com.nimbleflux.glucosesync.app.receiver.PollingAlarmReceiver.scheduleNext(
                         this@GlucosePollingService,
-                        POLLING_INTERVAL_MS
+                        intervalMs
                     )
                 } catch (e: Exception) {
                     if (BuildConfig.DEBUG) Log.w(TAG, "Could not schedule polling alarm: ${e.message}")
                 }
-                delay(POLLING_INTERVAL_MS)
+                delay(intervalMs)
             }
         }
     }
@@ -310,6 +307,5 @@ class GlucosePollingService : android.app.Service() {
 
     companion object {
         private const val TAG = "GlucosePolling"
-        private const val POLLING_INTERVAL_MS = 300_000L
     }
 }

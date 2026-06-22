@@ -53,6 +53,8 @@ fun SettingsScreen(
     onAlertVibrateDurationChange: (Int) -> Unit,
     deltaMinutes: Int,
     onDeltaMinutesChange: (Int) -> Unit,
+    pollingIntervalMinutes: Int = 5,
+    onPollingIntervalChange: (Int) -> Unit = {},
     themeMode: String,
     onThemeChange: (String) -> Unit,
     showWearInstall: Boolean,
@@ -182,6 +184,37 @@ fun SettingsScreen(
                             FilterChip(
                                 selected = deltaMinutes == mins,
                                 onClick = { onDeltaMinutesChange(mins) },
+                                label = { Text("${mins}m") }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Text(
+                stringResource(R.string.settings_polling_interval),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.settings_polling_interval_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(1, 2, 3, 5, 10).forEach { mins ->
+                            FilterChip(
+                                selected = pollingIntervalMinutes == mins,
+                                onClick = { onPollingIntervalChange(mins) },
                                 label = { Text("${mins}m") }
                             )
                         }

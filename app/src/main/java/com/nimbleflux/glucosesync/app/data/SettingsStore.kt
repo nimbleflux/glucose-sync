@@ -119,4 +119,10 @@ class SettingsStore(context: Context) {
     fun setHistoryWindowHours(hours: Int) {
         prefs.edit().putInt("history_window_hours", hours).apply()
     }
+
+    fun getPollingIntervalMinutes(): Int = prefs.getInt("polling_interval_minutes", 5)
+
+    fun setPollingIntervalMinutes(minutes: Int) {
+        prefs.edit().putInt("polling_interval_minutes", minutes).apply()
+    }
 }

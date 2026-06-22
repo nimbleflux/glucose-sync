@@ -121,6 +121,41 @@ class GlucoseRepository private constructor(context: Context) {
         )
         saving = false
         requestComplicationUpdate()
+        checkThresholdVibration(glucose)
+    }
+
+    @Volatile
+    private var lastVibrationTime: Long = 0L
+
+    private fun checkThresholdVibration(glucose: Double) {
+        if (glucose <= 0.0) return
+        val state = _state.value
+        val outOfRange = glucose < state.lowThreshold || glucose > state.highThreshold
+        if (!outOfRange) return
+
+        // Throttle: only vibrate once every 5 minutes to avoid buzzing
+        // on every reading when the sensor updates frequently.
+        val now = System.currentTimeMillis()
+        val repeatMs = 5 * 60_000L
+        if (now - lastVibrationTime < repeatMs) return
+        lastVibrationTime = now
+
+        try {
+            val vibrator = appContext.getSystemService(android.content.Context.VIBRATOR_SERVICE)
+                as android.os.Vibrator
+            // Double-buzz pattern: two short pulses with a gap
+            val pattern = longArrayOf(0, 200, 100, 200)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                vibrator.vibrate(
+                    android.os.VibrationEffect.createWaveform(pattern, -1)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(pattern, -1)
+            }
+        } catch (_: Exception) {
+            // Vibrator not available on this device
+        }
     }
 
     /**
