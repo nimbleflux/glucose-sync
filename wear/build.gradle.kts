@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.nimbleflux.glucosesync.wear"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.nimbleflux.glucosesync"
