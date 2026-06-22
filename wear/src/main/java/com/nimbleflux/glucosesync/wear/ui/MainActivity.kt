@@ -80,7 +80,7 @@ class MainActivity : ComponentActivity() {
             }
 
             if (state.glucose > 0.0 && !state.isStale) {
-                GlucoseDashboard(state, ::requestFreshData)
+                GlucoseDashboard(state, ::requestFreshData, onTestAlert = { repo.triggerTestAlert() })
             } else if (state.glucose > 0.0 && state.isStale) {
                 StaleGlucoseScreen(state, ::requestFreshData)
             } else {
@@ -140,7 +140,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun GlucoseDashboard(state: WatchGlucoseState, onRefresh: () -> Unit) {
+private fun GlucoseDashboard(
+    state: WatchGlucoseState,
+    onRefresh: () -> Unit,
+    onTestAlert: () -> Unit = {}
+) {
     val listState = rememberScalingLazyListState()
     var refreshing by remember { mutableStateOf(false) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
@@ -189,6 +193,19 @@ private fun GlucoseDashboard(state: WatchGlucoseState, onRefresh: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             item { GlucoseHero(state) }
+
+            if (BuildConfig.DEBUG) {
+                item {
+                    Chip(
+                        onClick = onTestAlert,
+                        label = { Text("Test Alert", fontSize = 11.sp) },
+                        colors = ChipDefaults.chipColors(
+                            backgroundColor = MaterialTheme.colors.primary
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
 
             if (state.history.size >= 4) {
                 item {

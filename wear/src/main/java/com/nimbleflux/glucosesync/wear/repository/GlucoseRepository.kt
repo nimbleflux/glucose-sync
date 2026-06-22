@@ -124,8 +124,23 @@ class GlucoseRepository private constructor(context: Context) {
         checkThresholdAlert(glucose)
     }
 
-    @Volatile
-    private var lastVibrationTime: Long = 0L
+    @Volatile private var lastVibrationTime: Long = 0L
+    @Volatile private var lastNotificationTime: Long = 0L
+
+    /**
+     * Debug-only: inject an out-of-range glucose value to test the alert
+     * system. Resets throttles so the alert fires immediately.
+     */
+    fun triggerTestAlert() {
+        lastVibrationTime = 0L
+        lastNotificationTime = 0L
+        // Delay 3s so the user can press the crown to return to the
+        // watch face before the alert fires. Wear OS suppresses
+        // same-app notifications when the app is in the foreground.
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            checkThresholdAlert(15.0)
+        }, 3000)
+    }
 
     private fun checkThresholdAlert(glucose: Double) {
         if (glucose <= 0.0) return
@@ -134,30 +149,36 @@ class GlucoseRepository private constructor(context: Context) {
         val isLow = glucose < state.lowThreshold
         if (!isHigh && !isLow) return
 
-        // Throttle: only alert once every 5 minutes to avoid buzzing
-        // on every reading when the sensor updates frequently.
         val now = System.currentTimeMillis()
         val repeatMs = 5 * 60_000L
-        if (now - lastVibrationTime < repeatMs) return
-        lastVibrationTime = now
 
-        // Vibrate
-        try {
-            val vibrator = appContext.getSystemService(android.content.Context.VIBRATOR_SERVICE)
-                as android.os.Vibrator
-            val pattern = longArrayOf(0, 200, 100, 200)
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                vibrator.vibrate(android.os.VibrationEffect.createWaveform(pattern, -1))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(pattern, -1)
+        // Vibrate (independent throttle)
+        if (now - lastVibrationTime >= repeatMs) {
+            lastVibrationTime = now
+            try {
+                val vibrator = appContext.getSystemService(android.content.Context.VIBRATOR_SERVICE)
+                    as android.os.Vibrator
+                val pattern = longArrayOf(0, 200, 100, 200)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    vibrator.vibrate(android.os.VibrationEffect.createWaveform(pattern, -1))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(pattern, -1)
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("WatchAlert", "Vibration failed: ${e.message}")
             }
-        } catch (_: Exception) { }
+        }
 
-        // Show a notification on the watch
-        try {
-            showWatchAlertNotification(glucose, isHigh, state)
-        } catch (_: Exception) { }
+        // Notification (independent throttle)
+        if (now - lastNotificationTime >= repeatMs) {
+            lastNotificationTime = now
+            try {
+                showWatchAlertNotification(glucose, isHigh, state)
+            } catch (e: Exception) {
+                android.util.Log.e("WatchAlert", "Notification failed", e)
+            }
+        }
     }
 
     private fun showWatchAlertNotification(
@@ -165,21 +186,27 @@ class GlucoseRepository private constructor(context: Context) {
         isHigh: Boolean,
         state: WatchGlucoseState
     ) {
+        android.util.Log.d("WatchAlert", "showWatchAlertNotification called: glucose=$glucose isHigh=$isHigh")
+
         val nm = appContext.getSystemService(android.content.Context.NOTIFICATION_SERVICE)
             as android.app.NotificationManager
+        android.util.Log.d("WatchAlert", "NotificationManager obtained: $nm")
 
         val channelId = "watch_glucose_alert"
         if (nm.getNotificationChannel(channelId) == null) {
+            android.util.Log.d("WatchAlert", "Creating channel $channelId")
             val channel = android.app.NotificationChannel(
                 channelId,
                 "Glucose alerts",
                 android.app.NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "High and low glucose threshold alerts"
-                enableVibration(false) // we handle vibration ourselves
+                enableVibration(false)
                 setShowBadge(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
             nm.createNotificationChannel(channel)
+            android.util.Log.d("WatchAlert", "Channel created")
         }
 
         val glucoseText = if (state.unit == "mg/dL") {
@@ -207,10 +234,13 @@ class GlucoseRepository private constructor(context: Context) {
             .setContentTitle(title)
             .setContentText("$glucoseText — $comparison threshold of $thresholdText")
             .setContentIntent(tapIntent)
+            .setVisibility(android.app.Notification.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .build()
 
+        android.util.Log.d("WatchAlert", "Posting notification: $title / $glucoseText")
         nm.notify(2001, notification)
+        android.util.Log.d("WatchAlert", "Notification posted successfully")
     }
 
     /**
