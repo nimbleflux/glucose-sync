@@ -125,4 +125,22 @@ class SettingsStore(context: Context) {
     fun setPollingIntervalMinutes(minutes: Int) {
         prefs.edit().putInt("polling_interval_minutes", minutes).apply()
     }
+
+    /**
+     * Trend sensitivity multiplier:
+     *   "conservative" = 1.5 (wider STABLE band, filters noise)
+     *   "standard" = 1.0 (Dexcom default)
+     *   "sensitive" = 0.7 (reacts faster, may flip on noise)
+     */
+    fun getTrendSensitivity(): String = prefs.getString("trend_sensitivity", "conservative") ?: "conservative"
+
+    fun setTrendSensitivity(level: String) {
+        prefs.edit().putString("trend_sensitivity", level).apply()
+    }
+
+    fun getTrendSensitivityMultiplier(): Double = when (getTrendSensitivity()) {
+        "standard" -> 1.0
+        "sensitive" -> 0.7
+        else -> 1.5  // conservative
+    }
 }

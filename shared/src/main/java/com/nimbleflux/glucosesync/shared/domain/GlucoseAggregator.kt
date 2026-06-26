@@ -44,11 +44,12 @@ object GlucoseAggregator {
     fun resolveTrend(
         snapshotTrend: TrendArrow,
         computedDelta: Double? = null,
-        computedRate: Double? = null
+        computedRate: Double? = null,
+        sensitivity: Double = 1.0
     ): TrendArrow {
         if (snapshotTrend != TrendArrow.UNKNOWN) return snapshotTrend
         return when {
-            computedRate != null -> TrendArrow.fromRate(computedRate)
+            computedRate != null -> TrendArrow.fromRate(computedRate, sensitivity)
             computedDelta != null -> TrendArrow.fromDelta(computedDelta)
             else -> TrendArrow.STABLE
         }
@@ -67,5 +68,37 @@ object GlucoseAggregator {
         if (seconds <= 0) return null
         val minutes = seconds / 60.0
         return (last.glucoseMmol - prev.glucoseMmol) / minutes
+    }
+
+    /**
+     * Smoothed per-minute glucose rate using a 3+3 reading moving average.
+     * Compares the average of the last 3 readings with the average of 3
+     * readings from approximately [windowMinutes] ago. This filters
+     * single-reading sensor noise that causes false trend signals.
+     *
+     * Returns null when there aren't enough readings for smoothing —
+     * callers should fall back to [computeRatePerMinute] or
+     * [computeDelta] in that case.
+     */
+    fun computeSmoothedRate(
+        history: List<GlucoseHistoryPoint>,
+        windowMinutes: Int
+    ): Double? {
+        if (history.size < 6) return null
+
+        val recent = history.takeLast(3)
+        val recentAvg = recent.map { it.glucoseMmol }.average()
+
+        val windowStart = recent.last().timestamp - windowMinutes * 60L
+        val olderCandidates = history.filter { it.timestamp <= windowStart }
+        if (olderCandidates.size < 3) return null
+
+        val older = olderCandidates.takeLast(3)
+        val olderAvg = older.map { it.glucoseMmol }.average()
+
+        val timeDiffSec = recent.last().timestamp - older.last().timestamp
+        if (timeDiffSec <= 0) return null
+
+        return (recentAvg - olderAvg) / (timeDiffSec / 60.0)
     }
 }

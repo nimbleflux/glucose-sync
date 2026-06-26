@@ -194,9 +194,6 @@ class GlucoseAggregatorTest {
 
     @Test
     fun resolveTrend_prefersRateOverDeltaWhenBothProvided() {
-        // delta alone would yield RISING_SLOWLY (0.6 > 0.3); rate alone
-        // yields RISING_RAPIDLY (> 0.17). Rate-based wins.
-        // 0.20 mmol/L/min rate => very fast rise regardless of window
         assertEquals(
             TrendArrow.RISING_RAPIDLY,
             GlucoseAggregator.resolveTrend(
@@ -205,6 +202,86 @@ class GlucoseAggregatorTest {
                 computedRate = 0.20
             )
         )
+    }
+
+    @Test
+    fun resolveTrend_appliesSensitivityMultiplier() {
+        // rate 0.08: with standard sensitivity (1.0) → RISING_SLOWLY (0.08 > 0.06)
+        // with conservative (1.5) → STABLE (0.08 < 0.06 * 1.5 = 0.09)
+        assertEquals(
+            TrendArrow.RISING_SLOWLY,
+            GlucoseAggregator.resolveTrend(
+                TrendArrow.UNKNOWN, computedRate = 0.08, sensitivity = 1.0
+            )
+        )
+        assertEquals(
+            TrendArrow.STABLE,
+            GlucoseAggregator.resolveTrend(
+                TrendArrow.UNKNOWN, computedRate = 0.08, sensitivity = 1.5
+            )
+        )
+    }
+
+    @Test
+    fun resolveTrend_sensitiveMakesTrendReactFaster() {
+        // rate 0.045: with standard (1.0) → STABLE (0.045 < 0.06)
+        // with sensitive (0.7) → RISING_SLOWLY (0.045 > 0.06 * 0.7 = 0.042)
+        assertEquals(
+            TrendArrow.STABLE,
+            GlucoseAggregator.resolveTrend(
+                TrendArrow.UNKNOWN, computedRate = 0.045, sensitivity = 1.0
+            )
+        )
+        assertEquals(
+            TrendArrow.RISING_SLOWLY,
+            GlucoseAggregator.resolveTrend(
+                TrendArrow.UNKNOWN, computedRate = 0.045, sensitivity = 0.7
+            )
+        )
+    }
+
+    @Test
+    fun computeSmoothedRate_returnsNullForShortHistory() {
+        assertNull(GlucoseAggregator.computeSmoothedRate(
+            listOf(
+                GlucoseHistoryPoint(1000, 5.0),
+                GlucoseHistoryPoint(2000, 5.5),
+                GlucoseHistoryPoint(3000, 6.0)
+            ),
+            windowMinutes = 5
+        ))
+    }
+
+    @Test
+    fun computeSmoothedRate_averagesNoiseFromBothGroups() {
+        // 6 readings: older 3 avg = 6.0, recent 3 avg = 6.0 (despite noise)
+        // Rate should be ~0 (flat)
+        val history = listOf(
+            GlucoseHistoryPoint(0, 5.7),
+            GlucoseHistoryPoint(60, 6.2),
+            GlucoseHistoryPoint(120, 6.1),   // older avg = 6.0
+            GlucoseHistoryPoint(300, 5.8),   // 5 min later
+            GlucoseHistoryPoint(360, 6.3),
+            GlucoseHistoryPoint(420, 5.9)    // recent avg = 6.0
+        )
+        val rate = GlucoseAggregator.computeSmoothedRate(history, windowMinutes = 5)!!
+        assertEquals(0.0, rate, 0.01)
+    }
+
+    @Test
+    fun computeSmoothedRate_detectsRealTrendThroughNoise() {
+        // Clear upward trend with noise: each group averages higher
+        val history = listOf(
+            GlucoseHistoryPoint(0, 5.0),
+            GlucoseHistoryPoint(60, 5.3),
+            GlucoseHistoryPoint(120, 4.9),   // older avg ≈ 5.07
+            GlucoseHistoryPoint(300, 6.0),
+            GlucoseHistoryPoint(360, 6.4),
+            GlucoseHistoryPoint(420, 5.8)    // recent avg ≈ 6.07
+        )
+        val rate = GlucoseAggregator.computeSmoothedRate(history, windowMinutes = 5)!!
+        // ~1.0 mmol/L change over ~5 min → rate ≈ 0.2 mmol/L/min
+        assertEquals(0.2, rate, 0.05)
     }
 
     @Test

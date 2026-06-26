@@ -23,20 +23,29 @@ enum class TrendArrow(val symbol: String) {
 
         /**
          * Map a per-minute glucose rate (mmol/L/min) to a trend arrow.
-         * Thresholds aligned with the widely-accepted Dexcom CGM standard:
-         *   DoubleUp:    > 3.0 mg/dL/min (> 0.17 mmol/L/min)
-         *   SingleUp:    2.0–3.0 mg/dL/min (0.11–0.17 mmol/L/min)
-         *   FortyFiveUp: 1.0–2.0 mg/dL/min (0.06–0.11 mmol/L/min)
-         *   Flat:        ±1.0 mg/dL/min (±0.06 mmol/L/min)
+         * Thresholds aligned with the Dexcom CGM standard, scaled by
+         * [sensitivity]:
+         *   > 1.0 = conservative (wider STABLE band, needs more change)
+         *   1.0   = standard (Dexcom default)
+         *   < 1.0 = sensitive (narrower STABLE band, reacts faster)
+         *
+         * Base thresholds (sensitivity = 1.0):
+         *   RISING_RAPIDLY:  > 0.17 mmol/L/min (3.0+ mg/dL/min)
+         *   RISING:          > 0.11 mmol/L/min (2.0-3.0 mg/dL/min)
+         *   RISING_SLOWLY:   > 0.06 mmol/L/min (1.0-2.0 mg/dL/min)
+         *   STABLE:          ±0.06 mmol/L/min (±1.0 mg/dL/min)
          */
-        fun fromRate(ratePerMinute: Double): TrendArrow = when {
-            ratePerMinute > 0.17 -> RISING_RAPIDLY
-            ratePerMinute > 0.11 -> RISING
-            ratePerMinute > 0.06 -> RISING_SLOWLY
-            ratePerMinute < -0.17 -> FALLING_RAPIDLY
-            ratePerMinute < -0.11 -> FALLING
-            ratePerMinute < -0.06 -> FALLING_SLOWLY
-            else -> STABLE
+        fun fromRate(ratePerMinute: Double, sensitivity: Double = 1.0): TrendArrow {
+            val s = sensitivity.coerceIn(0.3, 3.0)
+            return when {
+                ratePerMinute > 0.17 * s -> RISING_RAPIDLY
+                ratePerMinute > 0.11 * s -> RISING
+                ratePerMinute > 0.06 * s -> RISING_SLOWLY
+                ratePerMinute < -0.17 * s -> FALLING_RAPIDLY
+                ratePerMinute < -0.11 * s -> FALLING
+                ratePerMinute < -0.06 * s -> FALLING_SLOWLY
+                else -> STABLE
+            }
         }
     }
 }

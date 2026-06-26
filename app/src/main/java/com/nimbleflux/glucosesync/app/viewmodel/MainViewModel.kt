@@ -75,6 +75,7 @@ data class MainUiState(
     val remainingDose: Double? = null,
     val deltaMinutes: Int = 5,
     val pollingIntervalMinutes: Int = 5,
+    val trendSensitivity: String = "conservative",
     val alerts: List<AlertEntry> = emptyList(),
     val restoringSession: Boolean = true,
     val settingsLoaded: Boolean = false,
@@ -129,6 +130,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val themeMode = settingsStore.getThemeMode()
             val deltaMinutes = settingsStore.getDeltaMinutes()
             val pollingIntervalMinutes = settingsStore.getPollingIntervalMinutes()
+            val trendSensitivity = settingsStore.getTrendSensitivity()
             val wearBannerDismissed = settingsStore.getWearBannerDismissed()
             val historyWindowHours = settingsStore.getHistoryWindowHours()
             _uiState.update {
@@ -145,6 +147,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     themeMode = themeMode,
                     deltaMinutes = deltaMinutes,
                     pollingIntervalMinutes = pollingIntervalMinutes,
+                    trendSensitivity = trendSensitivity,
                     wearBannerDismissed = wearBannerDismissed,
                     historyWindowHours = historyWindowHours,
                     settingsLoaded = true
@@ -578,6 +581,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             settingsStore.setPollingIntervalMinutes(valid)
             _uiState.update { it.copy(pollingIntervalMinutes = valid) }
+        }
+    }
+
+    fun setTrendSensitivity(level: String) {
+        val valid = if (level in listOf("conservative", "standard", "sensitive")) level else "conservative"
+        viewModelScope.launch {
+            settingsStore.setTrendSensitivity(valid)
+            _uiState.update { it.copy(trendSensitivity = valid) }
         }
     }
 
