@@ -61,15 +61,19 @@ class GlucoseCoordinator(
             val trimmed = GlucoseAggregator.trimTo24h(merged)
             val deltaMin = try { settingsStore.getDeltaMinutes() } catch (_: Exception) { 5 }
             val computedDelta = GlucoseAggregator.computeDelta(trimmed, deltaMin) ?: snapshot.delta
-            // Compute rate over the SAME window as the delta so trend and
-            // delta always tell the same story. Previously Medtrum computed
-            // trend from the last 2 readings (1-2 min apart) while the delta
-            // was computed over the configurable window (5 min default).
-            val rateOverWindow = computedDelta?.let { it / deltaMin }
+
+            // Use smoothed rate (3+3 reading moving average) when enough
+            // history is available. Falls back to delta-window rate for
+            // short histories. The sensitivity multiplier widens/narrows
+            // the STABLE band per the user's preference.
+            val sensitivity = try { settingsStore.getTrendSensitivityMultiplier() } catch (_: Exception) { 1.5 }
+            val rateOverWindow = GlucoseAggregator.computeSmoothedRate(trimmed, deltaMin)
+                ?: computedDelta?.let { it / deltaMin }
             val trend = GlucoseAggregator.resolveTrend(
                 snapshot.trend,
                 computedDelta = computedDelta,
-                computedRate = rateOverWindow
+                computedRate = rateOverWindow,
+                sensitivity = sensitivity
             )
 
             if (snapshot.glucose != null) {

@@ -136,6 +136,8 @@ class MainActivity : ComponentActivity() {
                             onDeltaMinutesChange = { viewModel.setDeltaMinutes(it) },
                             pollingIntervalMinutes = state.pollingIntervalMinutes,
                             onPollingIntervalChange = { viewModel.setPollingIntervalMinutes(it) },
+                            trendSensitivity = state.trendSensitivity,
+                            onTrendSensitivityChange = { viewModel.setTrendSensitivity(it) },
                             themeMode = state.themeMode,
                             onThemeChange = { viewModel.setThemeMode(it) },
                             showWearInstall = state.watchPaired && !state.wearAppInstalled,
