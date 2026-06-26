@@ -49,44 +49,47 @@ class TrendArrowTest {
 
     @Test
     fun fromRate_risingRapidly() {
-        assertEquals(TrendArrow.RISING_RAPIDLY, TrendArrow.fromRate(0.11))
-        assertEquals(TrendArrow.RISING_RAPIDLY, TrendArrow.fromRate(0.20))
+        assertEquals(TrendArrow.RISING_RAPIDLY, TrendArrow.fromRate(0.18))
+        assertEquals(TrendArrow.RISING_RAPIDLY, TrendArrow.fromRate(0.25))
     }
 
     @Test
     fun fromRate_rising() {
-        assertEquals(TrendArrow.RISING, TrendArrow.fromRate(0.08))
+        assertEquals(TrendArrow.RISING, TrendArrow.fromRate(0.12))
+        assertEquals(TrendArrow.RISING, TrendArrow.fromRate(0.15))
     }
 
     @Test
     fun fromRate_risingSlowly() {
-        assertEquals(TrendArrow.RISING_SLOWLY, TrendArrow.fromRate(0.03))
-        assertEquals(TrendArrow.RISING_SLOWLY, TrendArrow.fromRate(0.06))
+        assertEquals(TrendArrow.RISING_SLOWLY, TrendArrow.fromRate(0.07))
+        assertEquals(TrendArrow.RISING_SLOWLY, TrendArrow.fromRate(0.10))
     }
 
     @Test
     fun fromRate_stable() {
         assertEquals(TrendArrow.STABLE, TrendArrow.fromRate(0.0))
-        assertEquals(TrendArrow.STABLE, TrendArrow.fromRate(0.01))
-        assertEquals(TrendArrow.STABLE, TrendArrow.fromRate(-0.01))
-        assertEquals(TrendArrow.STABLE, TrendArrow.fromRate(0.02))
+        assertEquals(TrendArrow.STABLE, TrendArrow.fromRate(0.03))
+        assertEquals(TrendArrow.STABLE, TrendArrow.fromRate(-0.03))
+        assertEquals(TrendArrow.STABLE, TrendArrow.fromRate(0.05))
+        assertEquals(TrendArrow.STABLE, TrendArrow.fromRate(-0.06))
     }
 
     @Test
     fun fromRate_fallingSlowly() {
-        assertEquals(TrendArrow.FALLING_SLOWLY, TrendArrow.fromRate(-0.03))
-        assertEquals(TrendArrow.FALLING_SLOWLY, TrendArrow.fromRate(-0.06))
+        assertEquals(TrendArrow.FALLING_SLOWLY, TrendArrow.fromRate(-0.07))
+        assertEquals(TrendArrow.FALLING_SLOWLY, TrendArrow.fromRate(-0.10))
     }
 
     @Test
     fun fromRate_falling() {
-        assertEquals(TrendArrow.FALLING, TrendArrow.fromRate(-0.08))
+        assertEquals(TrendArrow.FALLING, TrendArrow.fromRate(-0.12))
+        assertEquals(TrendArrow.FALLING, TrendArrow.fromRate(-0.15))
     }
 
     @Test
     fun fromRate_fallingRapidly() {
-        assertEquals(TrendArrow.FALLING_RAPIDLY, TrendArrow.fromRate(-0.11))
-        assertEquals(TrendArrow.FALLING_RAPIDLY, TrendArrow.fromRate(-0.20))
+        assertEquals(TrendArrow.FALLING_RAPIDLY, TrendArrow.fromRate(-0.18))
+        assertEquals(TrendArrow.FALLING_RAPIDLY, TrendArrow.fromRate(-0.25))
     }
 
     @Test

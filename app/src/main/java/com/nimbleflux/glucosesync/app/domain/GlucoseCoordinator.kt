@@ -61,7 +61,16 @@ class GlucoseCoordinator(
             val trimmed = GlucoseAggregator.trimTo24h(merged)
             val deltaMin = try { settingsStore.getDeltaMinutes() } catch (_: Exception) { 5 }
             val computedDelta = GlucoseAggregator.computeDelta(trimmed, deltaMin) ?: snapshot.delta
-            val trend = GlucoseAggregator.resolveTrend(snapshot.trend, computedDelta)
+            // Compute rate over the SAME window as the delta so trend and
+            // delta always tell the same story. Previously Medtrum computed
+            // trend from the last 2 readings (1-2 min apart) while the delta
+            // was computed over the configurable window (5 min default).
+            val rateOverWindow = computedDelta?.let { it / deltaMin }
+            val trend = GlucoseAggregator.resolveTrend(
+                snapshot.trend,
+                computedDelta = computedDelta,
+                computedRate = rateOverWindow
+            )
 
             if (snapshot.glucose != null) {
                 syncToWatch(snapshot, trimmed, trend.symbol, computedDelta)

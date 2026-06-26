@@ -6,7 +6,6 @@ import com.nimbleflux.glucosesync.shared.api.model.*
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
 import com.nimbleflux.glucosesync.shared.data.Credentials
 import com.nimbleflux.glucosesync.shared.domain.AlertEntry
-import com.nimbleflux.glucosesync.shared.domain.GlucoseAggregator
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
 import com.nimbleflux.glucosesync.shared.domain.TrendArrow
@@ -192,14 +191,12 @@ class MedtrumProvider(private val context: Context, private val debug: Boolean =
                 val delta = if (history.size >= 2) {
                     history.last().glucoseMmol - history[history.size - 2].glucoseMmol
                 } else null
-                val rate = GlucoseAggregator.computeRatePerMinute(history)
-                val trend = if (rate != null) {
-                    TrendArrow.fromRate(rate)
-                } else if (delta != null) {
-                    TrendArrow.fromDelta(delta)
-                } else {
-                    TrendArrow.UNKNOWN
-                }
+                // Return UNKNOWN trend — the GlucoseCoordinator will compute it
+                // from the delta window, keeping the trend consistent with the
+                // displayed delta value. Previously we computed it from the last
+                // two readings' rate, which used a different time window than
+                // the delta and caused mismatches with the Medtrum app.
+                val trend = TrendArrow.UNKNOWN
                 val pump = response.data.pump_status
 
                 val timeInRange = if (history.isNotEmpty()) {

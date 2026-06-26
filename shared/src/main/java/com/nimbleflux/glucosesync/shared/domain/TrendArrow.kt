@@ -21,13 +21,21 @@ enum class TrendArrow(val symbol: String) {
             else -> STABLE
         }
 
+        /**
+         * Map a per-minute glucose rate (mmol/L/min) to a trend arrow.
+         * Thresholds aligned with the widely-accepted Dexcom CGM standard:
+         *   DoubleUp:    > 3.0 mg/dL/min (> 0.17 mmol/L/min)
+         *   SingleUp:    2.0–3.0 mg/dL/min (0.11–0.17 mmol/L/min)
+         *   FortyFiveUp: 1.0–2.0 mg/dL/min (0.06–0.11 mmol/L/min)
+         *   Flat:        ±1.0 mg/dL/min (±0.06 mmol/L/min)
+         */
         fun fromRate(ratePerMinute: Double): TrendArrow = when {
-            ratePerMinute > 0.10 -> RISING_RAPIDLY
-            ratePerMinute > 0.06 -> RISING
-            ratePerMinute > 0.02 -> RISING_SLOWLY
-            ratePerMinute < -0.10 -> FALLING_RAPIDLY
-            ratePerMinute < -0.06 -> FALLING
-            ratePerMinute < -0.02 -> FALLING_SLOWLY
+            ratePerMinute > 0.17 -> RISING_RAPIDLY
+            ratePerMinute > 0.11 -> RISING
+            ratePerMinute > 0.06 -> RISING_SLOWLY
+            ratePerMinute < -0.17 -> FALLING_RAPIDLY
+            ratePerMinute < -0.11 -> FALLING
+            ratePerMinute < -0.06 -> FALLING_SLOWLY
             else -> STABLE
         }
     }
