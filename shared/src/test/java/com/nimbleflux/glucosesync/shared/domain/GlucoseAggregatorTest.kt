@@ -194,14 +194,15 @@ class GlucoseAggregatorTest {
 
     @Test
     fun resolveTrend_prefersRateOverDeltaWhenBothProvided() {
-        // delta alone would yield RISING (1.5 > 1.0); rate alone yields RISING_RAPIDLY (>0.10)
-        // 0.12 rate over 5 minutes => 0.6 mmol/L delta, but rate-based wins
+        // delta alone would yield RISING_SLOWLY (0.6 > 0.3); rate alone
+        // yields RISING_RAPIDLY (> 0.17). Rate-based wins.
+        // 0.20 mmol/L/min rate => very fast rise regardless of window
         assertEquals(
             TrendArrow.RISING_RAPIDLY,
             GlucoseAggregator.resolveTrend(
                 snapshotTrend = TrendArrow.UNKNOWN,
                 computedDelta = 0.6,
-                computedRate = 0.12
+                computedRate = 0.20
             )
         )
     }
