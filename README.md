@@ -19,6 +19,10 @@
   <em>GlucoseSync is awaiting Google Play review. If you'd like to test the app before public release, reach out to be added to the tester list.</em>
 </p>
 
+<p align="center">
+  <a href="https://buymeacoffee.com/nimbleflux"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-☕-FFDD00.svg" alt="Buy me a coffee"></a>
+</p>
+
 ---
 
 ## Features
