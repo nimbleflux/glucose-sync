@@ -138,6 +138,9 @@ class MainActivity : ComponentActivity() {
                             onPollingIntervalChange = { viewModel.setPollingIntervalMinutes(it) },
                             trendSensitivity = state.trendSensitivity,
                             onTrendSensitivityChange = { viewModel.setTrendSensitivity(it) },
+                            showTrendSensitivity = state.selectedProviderId?.let { id ->
+                                ProviderRegistry.getConfig(id)?.supportsLocalTrend == true
+                            } == true,
                             themeMode = state.themeMode,
                             onThemeChange = { viewModel.setThemeMode(it) },
                             showWearInstall = state.watchPaired && !state.wearAppInstalled,

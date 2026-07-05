@@ -16,7 +16,8 @@ object ProviderRegistry {
             description = "Connect your Medtrum Nano sensor via EasyView cloud",
             authType = AuthType.USERNAME_PASSWORD,
             available = true,
-            icon = "\uD83D\uDCF2"
+            icon = "\uD83D\uDCF2",
+            supportsLocalTrend = true
         ),
         ProviderConfig(
             id = "libre_linkup",
@@ -48,7 +49,8 @@ object ProviderRegistry {
             description = "Read directly from your sensor via xDrip+ — no cloud needed",
             authType = AuthType.NONE,
             available = true,
-            icon = "\uD83D\uDC0D"
+            icon = "\uD83D\uDC0D",
+            supportsLocalTrend = true
         )
     )
 

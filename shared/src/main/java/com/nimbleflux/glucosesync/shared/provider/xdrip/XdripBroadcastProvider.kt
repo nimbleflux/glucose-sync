@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
-import com.nimbleflux.glucosesync.shared.domain.GlucoseAggregator
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
 import com.nimbleflux.glucosesync.shared.domain.TrendArrow
@@ -20,7 +19,6 @@ import com.nimbleflux.glucosesync.shared.provider.ProviderSession
  */
 private data class BgReading(
     val glucoseMgDl: Double,
-    val slopeMgDlPerMin: Double?,
     val timestampMs: Long,
     val deltaMgDl: Double?
 )
@@ -76,12 +74,10 @@ class XdripBroadcastProvider(
             if (glucose <= 0f) return
 
             val timestamp = intent.getLongExtra(EXTRA_BG_TIMESTAMP, System.currentTimeMillis())
-            val slope = intent.getDoubleExtra(EXTRA_BG_SLOPE, Double.NaN)
             val delta = intent.getFloatExtra(EXTRA_BG_DELTA, Float.NaN)
 
             lastReading = BgReading(
                 glucoseMgDl = glucose.toDouble(),
-                slopeMgDlPerMin = if (!slope.isNaN()) slope else null,
                 timestampMs = timestamp,
                 deltaMgDl = if (!delta.isNaN()) delta.toDouble() else null
             )
@@ -144,11 +140,11 @@ class XdripBroadcastProvider(
 
         val mmol = reading.glucoseMgDl / 18.0
         val deltaMmol = reading.deltaMgDl?.let { it / 18.0 }
-        val rateMmol = reading.slopeMgDlPerMin?.let { it / 18.0 }
-        val trend = GlucoseAggregator.resolveTrend(
-            TrendArrow.UNKNOWN,
-            computedRate = rateMmol
-        )
+        // Defer trend to GlucoseCoordinator — it derives the arrow from
+        // accumulatedHistory via computeSmoothedRate, so the user's Trend
+        // sensitivity setting applies. Returning UNKNOWN here keeps xDrip
+        // consistent with Medtrum (the other local-derivation provider).
+        val trend = TrendArrow.UNKNOWN
 
         return Result.success(
             GlucoseSnapshot(
@@ -178,7 +174,6 @@ class XdripBroadcastProvider(
     companion object {
         const val ACTION_BG_READING = "com.eveningoutpost.dexdrip.BgReading"
         const val EXTRA_BG_VALUE = "bgValue"
-        const val EXTRA_BG_SLOPE = "bgSlope"
         const val EXTRA_BG_TIMESTAMP = "bgTimestamp"
         const val EXTRA_BG_DELTA = "bgDelta"
     }
