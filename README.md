@@ -9,18 +9,14 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Google%20Play-Awaiting%20Review-orange.svg" alt="Google Play: Awaiting Review">
+  <a href="https://play.google.com/store/apps/details?id=com.nimbleflux.glucosesync"><img src="https://img.shields.io/badge/Google%20Play-Available-green.svg" alt="Google Play: Available"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/platform-Android%20%7C%20Wear%20OS-green.svg" alt="Platform">
   <img src="https://img.shields.io/badge/kotlin-2.1-purple.svg" alt="Kotlin">
 </p>
 
 <p align="center">
-  <em>GlucoseSync is awaiting Google Play review. If you'd like to test the app before public release, reach out to be added to the tester list.</em>
-</p>
-
-<p align="center">
-  <a href="https://buymeacoffee.com/nimbleflux"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-☕-FFDD00.svg" alt="Buy me a coffee"></a>
+  <a href="https://buymeacoffee.com/nimbleflux"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="40"></a>
 </p>
 
 ---
