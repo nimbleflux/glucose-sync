@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="https://buymeacoffee.com/nimbleflux"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="40"></a>
+  <a href="https://buymeacoffee.com/nimbleflux" target="_blank" rel="noopener"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="40"></a>
 </p>
 
 ---
