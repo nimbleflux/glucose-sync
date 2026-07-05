@@ -58,6 +58,7 @@ fun SettingsScreen(
     onPollingIntervalChange: (Int) -> Unit = {},
     trendSensitivity: String = "conservative",
     onTrendSensitivityChange: (String) -> Unit = {},
+    showTrendSensitivity: Boolean = false,
     themeMode: String,
     onThemeChange: (String) -> Unit,
     showWearInstall: Boolean,
@@ -225,32 +226,34 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            if (showTrendSensitivity) {
+                Spacer(modifier = Modifier.height(28.dp))
 
-            Text(
-                "Trend sensitivity",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                "How quickly the trend arrow reacts to glucose changes. Conservative filters out sensor noise but may lag.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    "Trend sensitivity",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "How quickly the trend arrow reacts to glucose changes. Conservative filters out sensor noise but may lag.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
 
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surfaceContainerLow
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("conservative" to "Conservative", "standard" to "Standard", "sensitive" to "Sensitive").forEach { (id, label) ->
-                            FilterChip(
-                                selected = trendSensitivity == id,
-                                onClick = { onTrendSensitivityChange(id) },
-                                label = { Text(label, fontSize = 11.sp) }
-                            )
+                Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("conservative" to "Conservative", "standard" to "Standard", "sensitive" to "Sensitive").forEach { (id, label) ->
+                                FilterChip(
+                                    selected = trendSensitivity == id,
+                                    onClick = { onTrendSensitivityChange(id) },
+                                    label = { Text(label, fontSize = 11.sp) }
+                                )
+                            }
                         }
                     }
                 }
