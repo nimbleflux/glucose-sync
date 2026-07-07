@@ -259,14 +259,16 @@ class LibreLinkUpProvider(private val context: Context, private val debug: Boole
     }
 
     internal fun mapTrend(arrow: Int?): TrendArrow = when (arrow) {
-        // FreeStyle Libre trend arrows (Abbott's 5-state scale, stable at 3):
-        //   1 = rising rapidly   2 = rising   3 = stable
-        //   4 = falling          5 = falling rapidly   0/else = unknown
-        1 -> TrendArrow.RISING_RAPIDLY
-        2 -> TrendArrow.RISING
+        // LibreLinkUp trend arrow scale (per Abbott's API; low value = falling,
+        // high value = rising — the reverse of Dexcom). Verified against the
+        // reference nightscout-librelink-up mapTrendArrow():
+        //   1 = SingleDown     2 = FortyFiveDown   3 = Flat
+        //   4 = FortyFiveUp    5 = SingleUp        0/else = unknown
+        1 -> TrendArrow.FALLING_RAPIDLY
+        2 -> TrendArrow.FALLING
         3 -> TrendArrow.STABLE
-        4 -> TrendArrow.FALLING
-        5 -> TrendArrow.FALLING_RAPIDLY
+        4 -> TrendArrow.RISING
+        5 -> TrendArrow.RISING_RAPIDLY
         else -> TrendArrow.UNKNOWN
     }
 }
