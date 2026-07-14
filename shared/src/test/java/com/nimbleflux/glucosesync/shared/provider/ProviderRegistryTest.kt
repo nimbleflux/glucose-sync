@@ -28,4 +28,12 @@ class ProviderRegistryTest {
     fun getConfig_unknownId_returnsNull() {
         assertEquals(null, ProviderRegistry.getConfig("does-not-exist"))
     }
+
+    @Test
+    fun dexcom_isMarkedUnavailableUntilSupportedIntegrationExists() {
+        // Dexcom retired the legacy Share username/password login (HTTP 500
+        // ApplicationNotAuthenticated on every region). It is gated off in the
+        // picker until a supported path (e.g. the v3 OAuth API) lands.
+        assertFalse(ProviderRegistry.getConfig("dexcom_share")!!.available)
+    }
 }
