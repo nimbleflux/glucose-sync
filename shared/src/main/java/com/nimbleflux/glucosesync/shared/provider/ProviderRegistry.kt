@@ -38,9 +38,9 @@ object ProviderRegistry {
         ProviderConfig(
             id = "dexcom_share",
             displayName = "Dexcom",
-            description = "Connect via Dexcom Share — works with G6, G7, ONE, and Stelo",
+            description = "Dexcom retired the legacy Share login; a supported integration path is pending",
             authType = AuthType.USERNAME_PASSWORD,
-            available = true,
+            available = false,
             icon = "\uD83D\uDCE1"
         ),
         ProviderConfig(
