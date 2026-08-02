@@ -80,7 +80,10 @@ data class MainUiState(
     val restoringSession: Boolean = true,
     val settingsLoaded: Boolean = false,
     val xdripChecking: Boolean = false,
-    val xdripCheckResult: Boolean? = null
+    val xdripCheckResult: Boolean? = null,
+    val xdripElapsedSec: Int = 0,
+    val xdripBroadcastsSeen: Int = 0,
+    val xdripBroadcastsAccepted: Int = 0
 ) {
     val glucoseDisplay: Double?
         get() = glucose?.let { if (glucoseUnit == "mg/dL") it * 18 else it }
@@ -182,7 +185,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectProvider(providerId: String) {
-        provider = ProviderRegistry.create(providerId, getApplication(), BuildConfig.DEBUG)
+        val p = ProviderRegistry.create(providerId, getApplication(), BuildConfig.DEBUG)
+        provider = p
+        // xDrip+ is purely broadcast-driven: the only way to receive a
+        // reading is to already be listening when xDrip+ emits one. Register
+        // the receiver the moment the user picks the provider, so the listen
+        // window effectively starts while they read the setup steps. By the
+        // time they tap "Check Connection", a reading may already be waiting.
+        (p as? com.nimbleflux.glucosesync.shared.provider.xdrip.XdripBroadcastProvider)
+            ?.enableBroadcasts()
         _uiState.update { it.copy(selectedProviderId = providerId, showProviderPicker = false) }
     }
 
@@ -306,19 +317,55 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun checkXdripConnection() {
         val p = provider ?: return
+        val xdrip = p as? com.nimbleflux.glucosesync.shared.provider.xdrip.XdripBroadcastProvider
         viewModelScope.launch {
-            _uiState.update { it.copy(xdripChecking = true, xdripCheckResult = null) }
+            // login() registers the receiver; it's a no-op if we already
+            // registered it in selectProvider(). Reset the diagnostics so
+            // the counters reflect only what arrives during this attempt.
+            xdrip?.resetDiagnostics()
+            _uiState.update {
+                it.copy(
+                    xdripChecking = true,
+                    xdripCheckResult = null,
+                    xdripElapsedSec = 0,
+                    xdripBroadcastsSeen = 0,
+                    xdripBroadcastsAccepted = 0
+                )
+            }
             try {
                 p.login(ProviderCredentials.None)
             } catch (_: Exception) { }
-            // Poll for up to 60 seconds waiting for the first broadcast
+            // xDrip+ broadcasts a new reading roughly every 1–5 minutes
+            // (typically 5 min for most CGMs). The previous 60s window was
+            // shorter than one sensor interval, so a correctly-configured
+            // setup still failed ~4 out of 5 times purely on timing. Listen
+            // for a full ~5 minutes, reporting progress each tick so the user
+            // can self-diagnose instead of staring at a static spinner.
+            val tickMs = 2000L
+            val totalSec = 300
             var found = false
-            for (i in 1..30) {
-                delay(2000)
-                if ((p as? com.nimbleflux.glucosesync.shared.provider.xdrip.XdripBroadcastProvider)?.hasReceivedReading() == true) {
+            var elapsedSec = 0
+            while (elapsedSec < totalSec) {
+                delay(tickMs)
+                elapsedSec += (tickMs / 1000).toInt()
+                if (xdrip?.hasReceivedReading() == true) {
                     found = true
                     break
                 }
+                _uiState.update {
+                    it.copy(
+                        xdripElapsedSec = elapsedSec,
+                        xdripBroadcastsSeen = xdrip?.getBroadcastsSeen() ?: 0,
+                        xdripBroadcastsAccepted = xdrip?.getBroadcastsAccepted() ?: 0
+                    )
+                }
+            }
+            // Final counter snapshot (covers the found == true case too).
+            _uiState.update {
+                it.copy(
+                    xdripBroadcastsSeen = xdrip?.getBroadcastsSeen() ?: 0,
+                    xdripBroadcastsAccepted = xdrip?.getBroadcastsAccepted() ?: 0
+                )
             }
             if (found) {
                 credentialStore.saveSelectedProvider(p.id)

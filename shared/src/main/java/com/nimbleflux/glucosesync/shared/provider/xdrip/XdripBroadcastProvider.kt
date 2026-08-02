@@ -66,13 +66,42 @@ class XdripBroadcastProvider(
 
     private var receiverRegistered = false
 
+    /**
+     * Diagnostics for the setup "Check Connection" flow. Counting every
+     * incoming ACTION_BG_READING intent separately from the ones we
+     * actually accept lets the setup screen distinguish:
+     *  - seen == 0           -> xDrip+ isn't broadcasting (Broadcast Locally
+     *                           off, xDrip+ not running, or wrong action).
+     *  - seen > 0, accepted == 0 -> broadcasts arrive but the glucose extra
+     *                           is missing/invalid (a key/format mismatch).
+     */
+    @Volatile
+    private var broadcastsSeen = 0
+    @Volatile
+    private var broadcastsAccepted = 0
+
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action != ACTION_BG_READING) return
 
+            broadcastsSeen++
             val glucose = intent.getFloatExtra(EXTRA_BG_VALUE, -1f)
-            if (glucose <= 0f) return
+            if (glucose <= 0f) {
+                // The most common silent failure: xDrip+ is broadcasting, but
+                // the glucose extra isn't where we expect (different key or
+                // type). Log the keys we actually received so the cause is
+                // diagnosable instead of a silent drop.
+                if (debug) {
+                    android.util.Log.w(
+                        TAG,
+                        "Rejected BgReading broadcast: glucose=$glucose, " +
+                            "extras=${intent.extras?.keySet()?.joinToString()}"
+                    )
+                }
+                return
+            }
 
+            broadcastsAccepted++
             val timestamp = intent.getLongExtra(EXTRA_BG_TIMESTAMP, System.currentTimeMillis())
             val delta = intent.getFloatExtra(EXTRA_BG_DELTA, Float.NaN)
 
@@ -171,7 +200,25 @@ class XdripBroadcastProvider(
      */
     fun hasReceivedReading(): Boolean = lastReading != null
 
+    /** Number of BgReading broadcasts seen since [enableBroadcasts]. */
+    fun getBroadcastsSeen(): Int = broadcastsSeen
+
+    /** Number of broadcasts that passed the glucose validation. */
+    fun getBroadcastsAccepted(): Int = broadcastsAccepted
+
+    /**
+     * Reset the seen/accepted counters. Called at the start of a "Check
+     * Connection" attempt so each attempt reports only the broadcasts that
+     * arrived during that attempt — letting the user see whether a change
+     * they just made in xDrip+ (e.g. enabling Broadcast Locally) had effect.
+     */
+    fun resetDiagnostics() {
+        broadcastsSeen = 0
+        broadcastsAccepted = 0
+    }
+
     companion object {
+        private const val TAG = "XdripBroadcastProvider"
         const val ACTION_BG_READING = "com.eveningoutpost.dexdrip.BgReading"
         const val EXTRA_BG_VALUE = "bgValue"
         const val EXTRA_BG_TIMESTAMP = "bgTimestamp"
