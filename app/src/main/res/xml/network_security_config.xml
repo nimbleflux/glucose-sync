@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Permit cleartext (HTTP) traffic ONLY to the device loopback interface.
+
+    xDrip+ exposes a Nightscout-compatible local REST server on
+    http://127.0.0.1:17580 (the "xDrip Web Service"), used to backfill
+    historic glucose data. Since targetSdk >= 28 blocks cleartext by default,
+    we scope an explicit exception to 127.0.0.1 / localhost only. All real
+    cloud endpoints (Medtrum, Libre, Nightscout, Dexcom) use HTTPS and are
+    unaffected by this config.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

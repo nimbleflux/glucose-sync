@@ -54,14 +54,25 @@ private data class BgReading(
  * the decoded readings locally.
  *
  * The provider maintains an in-memory history buffer that accumulates
- * readings as broadcasts arrive. The 5-minute polling loop (via
- * [fetchGlucose]) serves as a fallback that returns the last cached
- * reading, ensuring stale-data detection still works if broadcasts stop.
+ * readings as broadcasts arrive. On session restore it also attempts a
+ * one-shot backfill from xDrip+'s local Web Service
+ * (http://127.0.0.1:17580/sgv.json) so the chart starts with up to 24h of
+ * data instead of filling point-by-point. The backfill is best-effort: if
+ * the Web Service is off or unreachable, the provider keeps working in
+ * broadcast-only mode and the chart fills as new readings arrive.
+ *
+ * The 5-minute polling loop (via [fetchGlucose]) serves as a fallback that
+ * returns the last cached reading, ensuring stale-data detection still works
+ * if broadcasts stop.
  *
  * Setup requirements for the user:
  *  1. Install xDrip+ and configure it for their sensor
  *  2. In xDrip+ → Settings → Inter-App Settings → enable "Broadcast Locally"
- *  3. Select xDrip+ as the provider in GlucoseSync
+ *     (required for any data to arrive)
+ *  3. Optionally enable "xDrip Web Service" in the same screen — this lets
+ *     GlucoseSync backfill up to 24h of history on connect so the chart
+ *     isn't empty for the first ~5 minutes per point
+ *  4. Select xDrip+ as the provider in GlucoseSync
  */
 class XdripBroadcastProvider(
     private val context: Context,
@@ -72,7 +83,7 @@ class XdripBroadcastProvider(
     override val displayName: String = "xDrip+ (Direct Sensor)"
     override val authType: AuthType = AuthType.NONE
 
-    override fun supportsHistory(): Boolean = false
+    override fun supportsHistory(): Boolean = true
     override fun supportsConnections(): Boolean = false
     override fun supportsPump(): Boolean = false
     override fun supportsDelta(): Boolean = true
@@ -237,7 +248,53 @@ class XdripBroadcastProvider(
 
     override suspend fun restoreSession(): Boolean {
         enableBroadcasts()
+        // Best-effort historic backfill so the chart isn't empty on first
+        // launch. No-op (returns empty) if the xDrip Web Service is off.
+        backfillHistory()
         return true
+    }
+
+    /**
+     * Pull up to 24h of historic SGV entries from xDrip+'s local Web Service
+     * and merge them into [accumulatedHistory]. Best-effort: any failure
+     * (service disabled, wrong secret, parse error) is swallowed so the
+     * provider keeps working in broadcast-only mode.
+     */
+    private suspend fun backfillHistory() {
+        try {
+            val service = XdripWebService.create(secret = null, debug = debug)
+            val entries = service.getSgv(count = 288)
+            if (entries.isEmpty()) return
+
+            val cutoff = System.currentTimeMillis() / 1000 - 86_400L
+            entries.forEach { e ->
+                val ms = e.date ?: return@forEach
+                val mgdl = e.sgv ?: return@forEach
+                if (mgdl <= 0) return@forEach
+                val ts = ms / 1000
+                if (ts < cutoff) return@forEach
+                val mmol = mgdl / 18.0
+                // Dedup by timestamp: a reading may already exist from a live
+                // broadcast that arrived between process start and this call.
+                accumulatedHistory.removeAll { it.timestamp == ts }
+                accumulatedHistory.add(GlucoseHistoryPoint(ts, mmol))
+            }
+            accumulatedHistory.sortBy { it.timestamp }
+            if (debug) {
+                android.util.Log.d(
+                    TAG,
+                    "xDrip Web Service backfill: ${accumulatedHistory.size} points"
+                )
+            }
+        } catch (e: java.io.IOException) {
+            // Web Service off / unreachable — expected when the user hasn't
+            // enabled it. Not an error; broadcast accumulation still works.
+            if (debug) android.util.Log.d(TAG, "xDrip Web Service backfill skipped: ${e.message}")
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (debug) android.util.Log.w(TAG, "xDrip Web Service backfill failed: ${e.message}")
+        }
     }
 
     override suspend fun fetchGlucose(): Result<GlucoseSnapshot> {
