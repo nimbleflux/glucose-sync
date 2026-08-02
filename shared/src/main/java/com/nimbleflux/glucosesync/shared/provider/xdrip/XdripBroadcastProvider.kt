@@ -330,8 +330,16 @@ class XdripBroadcastProvider(
     }
 
     override suspend fun fetchGlucose(): Result<GlucoseSnapshot> {
-        val reading = lastReading
-            ?: return Result.failure(GlucoseError.NoData)
+        val reading = lastReading ?: run {
+            // No cached reading yet — re-attempt the Web Service backfill
+            // before giving up. This reuses the caller's polling loop (the
+            // app's ~60s auto-refresh, or pull-to-refresh) as a natural
+            // retry: each tick tries again until the Web Service responds or
+            // a live broadcast arrives. Self-suppresses once lastReading is
+            // set, so there's no ongoing Web Service polling once data flows.
+            backfillHistory()
+            lastReading ?: return Result.failure(GlucoseError.NoData)
+        }
 
         val mmol = reading.glucoseMgDl / 18.0
         val deltaMmol = reading.deltaMgDl?.let { it / 18.0 }

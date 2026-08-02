@@ -78,12 +78,7 @@ data class MainUiState(
     val trendSensitivity: String = "conservative",
     val alerts: List<AlertEntry> = emptyList(),
     val restoringSession: Boolean = true,
-    val settingsLoaded: Boolean = false,
-    val xdripChecking: Boolean = false,
-    val xdripCheckResult: Boolean? = null,
-    val xdripElapsedSec: Int = 0,
-    val xdripBroadcastsSeen: Int = 0,
-    val xdripBroadcastsAccepted: Int = 0
+    val settingsLoaded: Boolean = false
 ) {
     val glucoseDisplay: Double?
         get() = glucose?.let { if (glucoseUnit == "mg/dL") it * 18 else it }
@@ -315,72 +310,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun checkXdripConnection() {
+    /**
+     * Proceed straight to the dashboard from the xDrip+ setup screen. The
+     * broadcast receiver is already registered (at provider-selection time),
+     * and login() runs the Web Service backfill. If no reading is available
+     * yet, the dashboard shows a "waiting for xDrip+" state and the auto-
+     * refresh loop retries the backfill every ~60s until data arrives — so
+     * there's no need to block here waiting for a live broadcast.
+     */
+    fun continueXdrip() {
         val p = provider ?: return
-        val xdrip = p as? com.nimbleflux.glucosesync.shared.provider.xdrip.XdripBroadcastProvider
         viewModelScope.launch {
-            // login() registers the receiver; it's a no-op if we already
-            // registered it in selectProvider(). Reset the diagnostics so
-            // the counters reflect only what arrives during this attempt.
-            xdrip?.resetDiagnostics()
-            _uiState.update {
-                it.copy(
-                    xdripChecking = true,
-                    xdripCheckResult = null,
-                    xdripElapsedSec = 0,
-                    xdripBroadcastsSeen = 0,
-                    xdripBroadcastsAccepted = 0
-                )
-            }
+            // login() is idempotent here: enableBroadcasts() is guarded, and
+            // backfillHistory() is safe to run again. It seeds lastReading
+            // immediately when the Web Service is reachable.
             try {
                 p.login(ProviderCredentials.None)
             } catch (_: Exception) { }
-            // xDrip+ broadcasts a new reading roughly every 1–5 minutes
-            // (typically 5 min for most CGMs). The previous 60s window was
-            // shorter than one sensor interval, so a correctly-configured
-            // setup still failed ~4 out of 5 times purely on timing. Listen
-            // for a full ~5 minutes, reporting progress each tick so the user
-            // can self-diagnose instead of staring at a static spinner.
-            val tickMs = 2000L
-            val totalSec = 300
-            var found = false
-            var elapsedSec = 0
-            while (elapsedSec < totalSec) {
-                delay(tickMs)
-                elapsedSec += (tickMs / 1000).toInt()
-                if (xdrip?.hasReceivedReading() == true) {
-                    found = true
-                    break
-                }
-                _uiState.update {
-                    it.copy(
-                        xdripElapsedSec = elapsedSec,
-                        xdripBroadcastsSeen = xdrip?.getBroadcastsSeen() ?: 0,
-                        xdripBroadcastsAccepted = xdrip?.getBroadcastsAccepted() ?: 0
-                    )
-                }
-            }
-            // Final counter snapshot (covers the found == true case too).
-            _uiState.update {
-                it.copy(
-                    xdripBroadcastsSeen = xdrip?.getBroadcastsSeen() ?: 0,
-                    xdripBroadcastsAccepted = xdrip?.getBroadcastsAccepted() ?: 0
-                )
-            }
-            if (found) {
-                credentialStore.saveSelectedProvider(p.id)
-                _uiState.update {
-                    it.copy(xdripChecking = false, xdripCheckResult = true)
-                }
-                // Give the setup screen a moment to show the success state
-                // before the isLoggedIn transition swaps to the dashboard
-                delay(1500)
-                _uiState.update { it.copy(isLoggedIn = true) }
-                refreshGlucose()
-                startAutoRefresh()
-            } else {
-                _uiState.update { it.copy(xdripChecking = false, xdripCheckResult = false) }
-            }
+            credentialStore.saveSelectedProvider(p.id)
+            _uiState.update { it.copy(isLoggedIn = true) }
+            refreshGlucose()
+            startAutoRefresh()
         }
     }
 

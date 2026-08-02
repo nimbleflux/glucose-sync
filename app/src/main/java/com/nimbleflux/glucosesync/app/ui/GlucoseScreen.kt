@@ -210,7 +210,7 @@ fun GlucoseScreen(
                         onWindowHoursChange = onWindowHoursChange
                     )
                 } else {
-                    InactiveSection(error)
+                    InactiveSection(error, providerId ?: "")
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -684,7 +684,8 @@ private fun StatCard(
 }
 
 @Composable
-private fun InactiveSection(error: String?) {
+private fun InactiveSection(error: String?, providerId: String = "") {
+    val isXdrip = providerId == "xdrip"
     Surface(
         shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -698,19 +699,35 @@ private fun InactiveSection(error: String?) {
             Icon(Icons.Filled.SensorsOff, contentDescription = null, modifier = Modifier.size(48.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
             Spacer(modifier = Modifier.height(20.dp))
-            Text(stringResource(R.string.no_sensor_data), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                stringResource(if (isXdrip) R.string.xdrip_waiting_title else R.string.no_sensor_data),
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
             Spacer(modifier = Modifier.height(8.dp))
-            Text(error ?: stringResource(R.string.waiting_for_readings), style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            Text(
+                error ?: stringResource(
+                    if (isXdrip) R.string.xdrip_waiting_body else R.string.waiting_for_readings
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
+            )
             Spacer(modifier = Modifier.height(20.dp))
             Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    ChecklistRow(stringResource(R.string.checklist_sensor_active))
-                    Spacer(modifier = Modifier.height(6.dp))
-                    ChecklistRow(stringResource(R.string.checklist_open_easysense))
-                    Spacer(modifier = Modifier.height(6.dp))
-                    ChecklistRow(stringResource(R.string.checklist_data_syncs))
+                    if (isXdrip) {
+                        ChecklistRow(stringResource(R.string.checklist_xdrip_broadcast))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        ChecklistRow(stringResource(R.string.checklist_xdrip_running))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        ChecklistRow(stringResource(R.string.checklist_xdrip_webservice))
+                    } else {
+                        ChecklistRow(stringResource(R.string.checklist_sensor_active))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        ChecklistRow(stringResource(R.string.checklist_open_easysense))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        ChecklistRow(stringResource(R.string.checklist_data_syncs))
+                    }
                 }
             }
         }

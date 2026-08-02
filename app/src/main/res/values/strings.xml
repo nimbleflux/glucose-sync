@@ -22,6 +22,11 @@
     <string name="checklist_sensor_active">Ensure your sensor is active</string>
     <string name="checklist_open_easysense">Open EasySense on your phone</string>
     <string name="checklist_data_syncs">Data syncs automatically</string>
+    <string name="xdrip_waiting_title">Waiting for xDrip+</string>
+    <string name="xdrip_waiting_body">GlucoseSync is listening for readings from xDrip+. The first reading arrives within ~5 minutes, or instantly if the xDrip Web Service is enabled.</string>
+    <string name="checklist_xdrip_broadcast">In xDrip+ → Inter-App Settings, turn ON \"Broadcast Locally\"</string>
+    <string name="checklist_xdrip_running">Keep xDrip+ running in the background</string>
+    <string name="checklist_xdrip_webservice">For instant history, enable xDrip Web Service</string>
 
     <string name="sign_in_to_provider">Sign in to your %s account</string>
     <string name="field_email">Email</string>

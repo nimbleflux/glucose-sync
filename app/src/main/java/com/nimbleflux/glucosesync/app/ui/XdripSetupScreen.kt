@@ -2,8 +2,6 @@ package com.nimbleflux.glucosesync.app.ui
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -18,18 +16,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nimbleflux.glucosesync.app.R
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun XdripSetupScreen(
-    checking: Boolean = false,
-    checkResult: Boolean? = null,
-    elapsedSec: Int = 0,
-    broadcastsSeen: Int = 0,
-    broadcastsAccepted: Int = 0,
-    onCheckConnection: () -> Unit = {},
-    onConnected: () -> Unit = {},
+    onContinue: () -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -178,122 +169,20 @@ fun XdripSetupScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Check connection
+            // Continue straight to the dashboard. The broadcast receiver is
+            // already registered (at provider-selection time), the Web Service
+            // backfill runs on login, and if no reading is available yet the
+            // dashboard shows a targeted "waiting for xDrip+" state that
+            // retries automatically. No need to block here waiting for a live
+            // broadcast — that just made every user wait ~5 minutes.
             Button(
-                onClick = onCheckConnection,
-                enabled = !checking,
+                onClick = onContinue,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = MaterialTheme.shapes.large
             ) {
-                if (checking) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Listening… ${"%d:%02d".format(elapsedSec / 60, elapsedSec % 60)}")
-                } else {
-                    Icon(Icons.Filled.Wifi, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Check Connection", style = MaterialTheme.typography.labelLarge)
-                }
-            }
-
-            // Live diagnostics while listening. Counting broadcasts seen vs.
-            // accepted lets the user tell the three failure modes apart:
-            //   seen == 0                  -> nothing arriving from xDrip+
-            //   seen > 0, accepted == 0    -> arriving but rejected (key/format)
-            //   accepted > 0               -> working (success path handles it)
-            if (checking) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                if (broadcastsSeen > 0) Icons.Filled.Wifi else Icons.Filled.WifiOff,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                "Broadcasts seen: $broadcastsSeen · Accepted: $broadcastsAccepted",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        val remaining = 300 - elapsedSec
-                        Text(
-                            when {
-                                broadcastsSeen == 0 && remaining > 0 ->
-                                    "No broadcasts yet. Readings arrive ~every 5 min — keep xDrip+ running with \"Broadcast Locally\" on."
-                                broadcastsSeen > 0 && broadcastsAccepted == 0 && remaining > 0 ->
-                                    "Broadcasts are arriving but being rejected — likely an xDrip+ version/format mismatch."
-                                remaining > 0 ->
-                                    "Listening — next reading should arrive in ~${"%d".format(remaining / 60 + 1)} min."
-                                else ->
-                                    "No reading received in this window."
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            AnimatedVisibility(visible = checkResult != null, enter = fadeIn()) {
-                when (checkResult) {
-                    true -> {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Surface(
-                            shape = MaterialTheme.shapes.medium,
-                            color = MaterialTheme.colorScheme.tertiaryContainer,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Connected! xDrip+ is sending readings.", color = MaterialTheme.colorScheme.onTertiaryContainer)
-                            }
-                        }
-                        LaunchedEffect(Unit) { delay(1500); onConnected() }
-                    }
-                    false -> {
-                        // Contextual failure message based on what we observed
-                        // during the listen window, instead of a generic hint.
-                        val (title, body) = when {
-                            broadcastsSeen == 0 -> "No broadcasts received" to
-                                "xDrip+ didn't send anything to GlucoseSync. Make sure xDrip+ is running, has received at least one reading, and \"Broadcast Locally\" (Settings → Inter-App Settings) is enabled."
-                            broadcastsAccepted == 0 -> "Broadcasts rejected" to
-                                "xDrip+ is broadcasting, but GlucoseSync couldn't read the glucose value — likely an xDrip+ version mismatch. Make sure you're on a recent xDrip+ build."
-                            else -> "No reading received" to
-                                "Broadcasts were accepted but none arrived within the listen window. Try again — readings only arrive every ~5 minutes."
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Surface(
-                            shape = MaterialTheme.shapes.medium,
-                            color = MaterialTheme.colorScheme.errorContainer,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(title, color = MaterialTheme.colorScheme.onErrorContainer, fontWeight = FontWeight.SemiBold)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    body,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            }
-                        }
-                    }
-                    null -> {}
-                }
+                Icon(Icons.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Continue", style = MaterialTheme.typography.labelLarge)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
