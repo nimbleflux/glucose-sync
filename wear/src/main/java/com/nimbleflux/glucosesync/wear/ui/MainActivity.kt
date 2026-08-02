@@ -2,6 +2,7 @@ package com.nimbleflux.glucosesync.wear.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.animate
@@ -69,6 +70,7 @@ class MainActivity : ComponentActivity() {
             val state by repo.state.collectAsState(initial = WatchGlucoseState())
 
             RequestFreshDataOnResume()
+            RequestNotificationPermission()
 
             if (BuildConfig.DEBUG && state.glucose <= 0.0) {
                 LaunchedEffect(Unit) {
@@ -101,6 +103,31 @@ class MainActivity : ComponentActivity() {
             lifecycleOwner.lifecycle.addObserver(observer)
             onDispose {
                 lifecycleOwner.lifecycle.removeObserver(observer)
+            }
+        }
+    }
+
+    /**
+     * Request POST_NOTIFICATIONS once on first launch. The watch declares
+     * the permission in the manifest, but on API 33+ it's a runtime
+     * permission that's denied by default. Without it, threshold alerts
+     * vibrate (VIBRATE is install-time) but the alert notification is
+     * silently suppressed by the system — so the user gets a buzz with no
+     * visible notification.
+     */
+    @Composable
+    private fun RequestNotificationPermission() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return
+        val context = LocalContext.current
+        val launcher = rememberLauncherForActivityResult(
+            contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+        ) { /* Result is reflected on next alert; nothing to do here. */ }
+        LaunchedEffect(Unit) {
+            val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
             }
         }
     }

@@ -154,10 +154,15 @@ class GlucoseRepository private constructor(context: Context) {
             }
         } catch (_: Exception) { }
 
-        // Show a notification on the watch
+        // Show a notification on the watch. Don't silently swallow failures
+        // here — if the notification can't be posted (e.g. POST_NOTIFICATIONS
+        // not granted), the user still needs to know why the buzz had no
+        // visible alert. Surface it to logcat instead.
         try {
             showWatchAlertNotification(glucose, isHigh, state)
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "Failed to post watch glucose alert notification", e)
+        }
     }
 
     private fun showWatchAlertNotification(
@@ -178,6 +183,9 @@ class GlucoseRepository private constructor(context: Context) {
                 description = "High and low glucose threshold alerts"
                 enableVibration(false) // we handle vibration ourselves
                 setShowBadge(true)
+                // Show on the lock screen so alerts are visible without
+                // waking/unlocking the watch. Matches the phone-side channel.
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
             nm.createNotificationChannel(channel)
         }
@@ -208,6 +216,12 @@ class GlucoseRepository private constructor(context: Context) {
             .setContentText("$glucoseText — $comparison threshold of $thresholdText")
             .setContentIntent(tapIntent)
             .setAutoCancel(true)
+            // Surface as a heads-up on the watch face and show on the lock
+            // screen. Without these the alert can be posted but never
+            // displayed, even with permission granted. Matches the phone-side
+            // GlucoseAlertManager.
+            .setCategory(android.app.Notification.CATEGORY_ALARM)
+            .setVisibility(android.app.Notification.VISIBILITY_PUBLIC)
             .build()
 
         nm.notify(2001, notification)
@@ -320,6 +334,8 @@ class GlucoseRepository private constructor(context: Context) {
     }
 
     companion object {
+        private const val TAG = "GlucoseRepository"
+
         @Volatile
         private var INSTANCE: GlucoseRepository? = null
 

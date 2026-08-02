@@ -166,6 +166,9 @@ class MainActivity : ComponentActivity() {
                         XdripSetupScreen(
                             checking = state.xdripChecking,
                             checkResult = state.xdripCheckResult,
+                            elapsedSec = state.xdripElapsedSec,
+                            broadcastsSeen = state.xdripBroadcastsSeen,
+                            broadcastsAccepted = state.xdripBroadcastsAccepted,
                             onCheckConnection = { viewModel.checkXdripConnection() },
                             onConnected = { },
                             onBack = { viewModel.showProviderPicker() }

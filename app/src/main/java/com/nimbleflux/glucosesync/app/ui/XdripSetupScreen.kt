@@ -25,6 +25,9 @@ import kotlinx.coroutines.delay
 fun XdripSetupScreen(
     checking: Boolean = false,
     checkResult: Boolean? = null,
+    elapsedSec: Int = 0,
+    broadcastsSeen: Int = 0,
+    broadcastsAccepted: Int = 0,
     onCheckConnection: () -> Unit = {},
     onConnected: () -> Unit = {},
     onBack: () -> Unit
@@ -180,11 +183,58 @@ fun XdripSetupScreen(
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Waiting for first reading...")
+                    Text("Listening… ${"%d:%02d".format(elapsedSec / 60, elapsedSec % 60)}")
                 } else {
                     Icon(Icons.Filled.Wifi, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Check Connection", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+
+            // Live diagnostics while listening. Counting broadcasts seen vs.
+            // accepted lets the user tell the three failure modes apart:
+            //   seen == 0                  -> nothing arriving from xDrip+
+            //   seen > 0, accepted == 0    -> arriving but rejected (key/format)
+            //   accepted > 0               -> working (success path handles it)
+            if (checking) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                if (broadcastsSeen > 0) Icons.Filled.Wifi else Icons.Filled.WifiOff,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Broadcasts seen: $broadcastsSeen · Accepted: $broadcastsAccepted",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        val remaining = 300 - elapsedSec
+                        Text(
+                            when {
+                                broadcastsSeen == 0 && remaining > 0 ->
+                                    "No broadcasts yet. Readings arrive ~every 5 min — keep xDrip+ running with \"Broadcast Locally\" on."
+                                broadcastsSeen > 0 && broadcastsAccepted == 0 && remaining > 0 ->
+                                    "Broadcasts are arriving but being rejected — likely an xDrip+ version/format mismatch."
+                                remaining > 0 ->
+                                    "Listening — next reading should arrive in ~${"%d".format(remaining / 60 + 1)} min."
+                                else ->
+                                    "No reading received in this window."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
@@ -206,6 +256,16 @@ fun XdripSetupScreen(
                         LaunchedEffect(Unit) { delay(1500); onConnected() }
                     }
                     false -> {
+                        // Contextual failure message based on what we observed
+                        // during the listen window, instead of a generic hint.
+                        val (title, body) = when {
+                            broadcastsSeen == 0 -> "No broadcasts received" to
+                                "xDrip+ didn't send anything to GlucoseSync. Make sure xDrip+ is running, has received at least one reading, and \"Broadcast Locally\" (Settings → Inter-App Settings) is enabled."
+                            broadcastsAccepted == 0 -> "Broadcasts rejected" to
+                                "xDrip+ is broadcasting, but GlucoseSync couldn't read the glucose value — likely an xDrip+ version mismatch. Make sure you're on a recent xDrip+ build."
+                            else -> "No reading received" to
+                                "Broadcasts were accepted but none arrived within the listen window. Try again — readings only arrive every ~5 minutes."
+                        }
                         Spacer(modifier = Modifier.height(12.dp))
                         Surface(
                             shape = MaterialTheme.shapes.medium,
@@ -213,10 +273,10 @@ fun XdripSetupScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
-                                Text("No reading received", color = MaterialTheme.colorScheme.onErrorContainer, fontWeight = FontWeight.SemiBold)
+                                Text(title, color = MaterialTheme.colorScheme.onErrorContainer, fontWeight = FontWeight.SemiBold)
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    "Make sure xDrip+ is running, has received at least one reading, and \"Broadcast Locally\" is enabled.",
+                                    body,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onErrorContainer
                                 )
