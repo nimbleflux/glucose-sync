@@ -41,6 +41,15 @@ class NightscoutProvider(
     private var siteUrl: String = ""
     private var apiToken: String = ""
 
+    // High/low thresholds (mmol/L) captured from status.json at login/restore.
+    // Nightscout stores them in mg/dL; we convert once and reuse on every
+    // fetch so the watch's threshold alerts use the user's actual limits
+    // instead of the hardcoded defaults. Null when the site doesn't expose them.
+    @Volatile
+    private var highThresholdMmol: Double? = null
+    @Volatile
+    private var lowThresholdMmol: Double? = null
+
     override suspend fun login(credentials: ProviderCredentials): Result<ProviderSession> {
         val creds = credentials as? ProviderCredentials.ApiToken
             ?: return Result.failure(
@@ -61,6 +70,7 @@ class NightscoutProvider(
             siteUrl = creds.url
             apiToken = creds.token
             api = service
+            captureThresholds(status)
 
             credentialStore.saveNightscoutSession(creds.url, creds.token)
 
@@ -86,10 +96,11 @@ class NightscoutProvider(
         return try {
             val service = NightscoutApiClient.create(url, token, debug)
             // Light validation - a 401 here means the token was revoked.
-            service.getStatus()
+            val status = service.getStatus()
             siteUrl = url
             apiToken = token
             api = service
+            captureThresholds(status)
             true
         } catch (_: Exception) {
             false
@@ -128,6 +139,8 @@ class NightscoutProvider(
                     unit = "mmol/L",
                     sensorActive = true,
                     delta = deltaMmol,
+                    highThreshold = highThresholdMmol,
+                    lowThreshold = lowThresholdMmol,
                     history = history
                 )
             )
@@ -144,6 +157,20 @@ class NightscoutProvider(
         api = null
         siteUrl = ""
         apiToken = ""
+        highThresholdMmol = null
+        lowThresholdMmol = null
+    }
+
+    /**
+     * Capture high/low thresholds (mg/dL) from a status response and store
+     * them as mmol/L. Null-safe: sites that don't expose thresholds leave
+     * the cached values null, and the snapshot fields stay null so callers
+     * (e.g. the watch alert check) fall back to their own defaults.
+     */
+    private fun captureThresholds(status: NightscoutStatus) {
+        val t = status.settings?.thresholds
+        highThresholdMmol = t?.bgHigh?.takeIf { it > 0 }?.let { it / 18.0 }
+        lowThresholdMmol = t?.bgLow?.takeIf { it > 0 }?.let { it / 18.0 }
     }
 
     /**

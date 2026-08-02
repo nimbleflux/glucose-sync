@@ -20,7 +20,9 @@ import com.nimbleflux.glucosesync.shared.provider.ProviderSession
 private data class BgReading(
     val glucoseMgDl: Double,
     val timestampMs: Long,
-    val deltaMgDl: Double?
+    val deltaMgDl: Double?,
+    val trend: TrendArrow = TrendArrow.UNKNOWN,
+    val batteryPercent: Double? = null
 )
 
 /**
@@ -28,7 +30,23 @@ private data class BgReading(
  *
  * xDrip+ is an open-source app that reads from CGM sensors directly (Libre,
  * Dexcom, etc.) via NFC/BLE. It broadcasts each new reading to other apps
- * on the same phone via the action `com.eveningoutpost.dexdrip.BgReading`.
+ * on the same phone.
+ *
+ * Stock xDrip+ sends the action `com.eveningoutpost.dexdrip.BgEstimate`
+ * with fully-qualified extras (`...Extras.BgEstimate`, `...Extras.Time`,
+ * `...Extras.BgSlope`, `...Extras.BgSlopeName`, `...Extras.SensorBattery`,
+ * …). The legacy `com.eveningoutpost.dexdrip.BgReading` action with bare
+ * extras `bgValue`/`bgTimestamp`/`bgDelta` is the **Diabox** convention
+ * (some third-party xDrip forks too); we listen for both so the provider
+ * works regardless of which app is the source.
+ *
+ * Beyond glucose/timestamp/delta, the stock xDrip+ broadcast also carries
+ * the trend arrow (from `BgSlopeName`) and the transmitter battery
+ * (`SensorBattery`), which we surface on the snapshot. Insulin/pump data
+ * (IOB, basal, bolus) is NOT available from plain xDrip+ — it only appears
+ * if the user also runs a loop system (AAPS/Loop) feeding the separate
+ * `com.eveningoutpost.dexdrip.ExternalStatusline` broadcast, which is out
+ * of scope here. High/low thresholds are not exposed by xDrip+ either.
  *
  * This provider requires NO cloud dependency, NO account, and NO internet
  * connection. The user runs xDrip+ (which handles sensor-specific BLE/NFC
@@ -68,7 +86,7 @@ class XdripBroadcastProvider(
 
     /**
      * Diagnostics for the setup "Check Connection" flow. Counting every
-     * incoming ACTION_BG_READING intent separately from the ones we
+     * incoming BgEstimate/BgReading intent separately from the ones we
      * actually accept lets the setup screen distinguish:
      *  - seen == 0           -> xDrip+ isn't broadcasting (Broadcast Locally
      *                           off, xDrip+ not running, or wrong action).
@@ -82,19 +100,35 @@ class XdripBroadcastProvider(
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action != ACTION_BG_READING) return
+            // Accept both the stock xDrip+ action and the Diabox-style
+            // legacy action; a single receiver handles either.
+            when (intent.action) {
+                ACTION_BG_ESTIMATE, ACTION_BG_READING -> Unit
+                else -> return
+            }
 
             broadcastsSeen++
-            val glucose = intent.getFloatExtra(EXTRA_BG_VALUE, -1f)
-            if (glucose <= 0f) {
-                // The most common silent failure: xDrip+ is broadcasting, but
-                // the glucose extra isn't where we expect (different key or
-                // type). Log the keys we actually received so the cause is
+
+            // Stock xDrip+ extras are doubles under fully-qualified keys;
+            // Diabox-style extras are floats under bare keys. Prefer the
+            // modern keys and fall back so the provider works with either
+            // source app.
+            val modernGlucose = intent.getDoubleExtra(EXTRA_BG_ESTIMATE, Double.NaN)
+            val glucose = when {
+                !modernGlucose.isNaN() && modernGlucose > 0.0 -> modernGlucose
+                else -> intent.getFloatExtra(EXTRA_BG_VALUE, -1f).toDouble()
+            }
+
+            if (glucose <= 0.0) {
+                // Broadcasts arriving but with no usable glucose value — most
+                // often a key/format mismatch between this app and the source.
+                // Log the keys we actually received so the cause is
                 // diagnosable instead of a silent drop.
                 if (debug) {
                     android.util.Log.w(
                         TAG,
-                        "Rejected BgReading broadcast: glucose=$glucose, " +
+                        "Rejected BgEstimate/BgReading broadcast: glucose=$glucose, " +
+                            "action=${intent.action}, " +
                             "extras=${intent.extras?.keySet()?.joinToString()}"
                     )
                 }
@@ -102,17 +136,55 @@ class XdripBroadcastProvider(
             }
 
             broadcastsAccepted++
-            val timestamp = intent.getLongExtra(EXTRA_BG_TIMESTAMP, System.currentTimeMillis())
-            val delta = intent.getFloatExtra(EXTRA_BG_DELTA, Float.NaN)
+
+            val timestamp = if (intent.hasExtra(EXTRA_TIMESTAMP)) {
+                intent.getLongExtra(EXTRA_TIMESTAMP, System.currentTimeMillis())
+            } else {
+                intent.getLongExtra(EXTRA_BG_TIMESTAMP, System.currentTimeMillis())
+            }
+
+            // Delta: xDrip+ sends a slope (mg/dL per minute), not an absolute
+            // delta. Approximate the per-reading delta as slope × 5 min, which
+            // matches the typical CGM reading interval. Diabox sends an
+            // absolute bgDelta (mg/dL) directly.
+            val deltaMgDl: Double? = when {
+                intent.hasExtra(EXTRA_BG_SLOPE) -> {
+                    val slope = intent.getDoubleExtra(EXTRA_BG_SLOPE, Double.NaN)
+                    if (!slope.isNaN()) slope * DELTA_APPROX_MINUTES else null
+                }
+                intent.hasExtra(EXTRA_BG_DELTA) -> {
+                    val d = intent.getFloatExtra(EXTRA_BG_DELTA, Float.NaN)
+                    if (!d.isNaN()) d.toDouble() else null
+                }
+                else -> null
+            }
+
+            // Trend arrow: xDrip+ sends the slope name (e.g. "DoubleUp").
+            val trend = if (intent.hasExtra(EXTRA_BG_SLOPE_NAME)) {
+                mapSlopeName(intent.getStringExtra(EXTRA_BG_SLOPE_NAME))
+            } else {
+                TrendArrow.UNKNOWN
+            }
+
+            // Transmitter battery (0-100). Only present in the stock xDrip+
+            // broadcast; Diabox doesn't send it.
+            val battery: Double? = if (intent.hasExtra(EXTRA_SENSOR_BATTERY)) {
+                val pct = intent.getIntExtra(EXTRA_SENSOR_BATTERY, -1)
+                if (pct in 0..100) pct / 100.0 else null
+            } else {
+                null
+            }
 
             lastReading = BgReading(
-                glucoseMgDl = glucose.toDouble(),
+                glucoseMgDl = glucose,
                 timestampMs = timestamp,
-                deltaMgDl = if (!delta.isNaN()) delta.toDouble() else null
+                deltaMgDl = deltaMgDl,
+                trend = trend,
+                batteryPercent = battery
             )
 
             // Accumulate history for chart rendering
-            val mmol = glucose.toDouble() / 18.0
+            val mmol = glucose / 18.0
             val ts = timestamp / 1000
             accumulatedHistory.removeAll { it.timestamp == ts }
             accumulatedHistory.add(GlucoseHistoryPoint(ts, mmol))
@@ -126,7 +198,12 @@ class XdripBroadcastProvider(
     @Suppress("UnspecifiedRegisterReceiverFlag")
     fun enableBroadcasts() {
         if (receiverRegistered) return
-        val filter = IntentFilter(ACTION_BG_READING)
+        // Register for both the stock xDrip+ action and the Diabox-style
+        // legacy action so the provider works with either source app.
+        val filter = IntentFilter().apply {
+            addAction(ACTION_BG_ESTIMATE)
+            addAction(ACTION_BG_READING)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             // RECEIVER_EXPORTED: xDrip+ is a different app, so we must
             // allow external broadcasts. Using NOT_EXPORTED here would
@@ -169,11 +246,10 @@ class XdripBroadcastProvider(
 
         val mmol = reading.glucoseMgDl / 18.0
         val deltaMmol = reading.deltaMgDl?.let { it / 18.0 }
-        // Defer trend to GlucoseCoordinator — it derives the arrow from
-        // accumulatedHistory via computeSmoothedRate, so the user's Trend
-        // sensitivity setting applies. Returning UNKNOWN here keeps xDrip
-        // consistent with Medtrum (the other local-derivation provider).
-        val trend = TrendArrow.UNKNOWN
+        // Use the trend arrow xDrip+ sent in the broadcast (from BgSlopeName).
+        // If the source didn't include one, fall back to UNKNOWN and let the
+        // GlucoseCoordinator derive an arrow from accumulatedHistory instead.
+        val trend = if (reading.trend != TrendArrow.UNKNOWN) reading.trend else TrendArrow.UNKNOWN
 
         return Result.success(
             GlucoseSnapshot(
@@ -183,6 +259,7 @@ class XdripBroadcastProvider(
                 unit = "mmol/L",
                 sensorActive = true,
                 delta = deltaMmol,
+                batteryPercent = reading.batteryPercent,
                 history = accumulatedHistory.toList()
             )
         )
@@ -217,8 +294,39 @@ class XdripBroadcastProvider(
         broadcastsAccepted = 0
     }
 
+    /**
+     * Map an xDrip+ slope-name string to our TrendArrow enum. Values follow
+     * the names emitted by xDrip+'s `BroadcastGlucose` (e.g. "DoubleUp",
+     * "Flat"). `"9"` is sent when the user has hidden the slope — treat it as
+     * unknown so the coordinator can derive an arrow from history.
+     */
+    internal fun mapSlopeName(slopeName: String?): TrendArrow = when (slopeName?.lowercase()) {
+        "doubleup" -> TrendArrow.RISING_RAPIDLY
+        "singleup" -> TrendArrow.RISING
+        "fortyfiveup" -> TrendArrow.RISING_SLOWLY
+        "flat" -> TrendArrow.STABLE
+        "fortyfivedown" -> TrendArrow.FALLING_SLOWLY
+        "singledown" -> TrendArrow.FALLING
+        "doubledown" -> TrendArrow.FALLING_RAPIDLY
+        else -> TrendArrow.UNKNOWN
+    }
+
     companion object {
         private const val TAG = "XdripBroadcastProvider"
+
+        /** Assumed minutes between CGM readings, used to turn a per-minute slope into a per-reading delta. */
+        private const val DELTA_APPROX_MINUTES = 5.0
+
+        // Stock xDrip+ action and fully-qualified extras
+        // (com.eveningoutpost.dexdrip.utilitymodels.Intents / BroadcastGlucose).
+        const val ACTION_BG_ESTIMATE = "com.eveningoutpost.dexdrip.BgEstimate"
+        const val EXTRA_BG_ESTIMATE = "com.eveningoutpost.dexdrip.Extras.BgEstimate"
+        const val EXTRA_TIMESTAMP = "com.eveningoutpost.dexdrip.Extras.Time"
+        const val EXTRA_BG_SLOPE = "com.eveningoutpost.dexdrip.Extras.BgSlope"
+        const val EXTRA_BG_SLOPE_NAME = "com.eveningoutpost.dexdrip.Extras.BgSlopeName"
+        const val EXTRA_SENSOR_BATTERY = "com.eveningoutpost.dexdrip.Extras.SensorBattery"
+
+        // Diabox-style legacy action and bare extras (kept for compatibility).
         const val ACTION_BG_READING = "com.eveningoutpost.dexdrip.BgReading"
         const val EXTRA_BG_VALUE = "bgValue"
         const val EXTRA_BG_TIMESTAMP = "bgTimestamp"
