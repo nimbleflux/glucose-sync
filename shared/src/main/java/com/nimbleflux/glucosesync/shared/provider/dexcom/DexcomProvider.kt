@@ -2,6 +2,7 @@ package com.nimbleflux.glucosesync.shared.provider.dexcom
 
 import android.content.Context
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
+import com.nimbleflux.glucosesync.shared.data.Credentials
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import com.nimbleflux.glucosesync.shared.domain.GlucoseSnapshot
 import com.nimbleflux.glucosesync.shared.domain.TrendArrow
@@ -11,9 +12,13 @@ import com.nimbleflux.glucosesync.shared.provider.GlucoseProvider
 import com.nimbleflux.glucosesync.shared.provider.ProviderCredentials
 import com.nimbleflux.glucosesync.shared.provider.ProviderSession
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
@@ -24,12 +29,18 @@ import java.util.concurrent.TimeUnit
  * Works with Dexcom G6, G7, Dexcom ONE, and Stelo — all sensor generations
  * share the same Dexcom account and the same Share API backend.
  *
- * Authentication uses username + password + a well-known application ID.
- * The API returns a session token used for subsequent data fetches.
- * All endpoints are POST (even reads).
+ * Authentication is the community-standard two-step "by-id" flow:
+ *   1. `AuthenticatePublisherAccount(accountName, password)` → accountId
+ *   2. `LoginPublisherAccountById(accountId, password)`       → sessionID
  *
- * The user must have "Share" enabled in their Dexcom app settings, and
- * both phones need internet connectivity.
+ * `sessionID` then authorizes glucose fetches as a query parameter.
+ * This matches pydexcom, nightscout-connect, and share2nightscout-bridge.
+ * The deprecated single-step `LoginPublisherAccountByName` endpoint was
+ * retired by Dexcom (HTTP 500 ApplicationNotAuthenticated) and is NOT used.
+ *
+ * The user must have "Share" enabled in their Dexcom app settings, and the
+ * credentials must be the primary publisher account (not a follower/dependent,
+ * and not a newer G7-era account that only permits email/web login).
  */
 class DexcomProvider(
     private val context: Context,
@@ -53,10 +64,15 @@ class DexcomProvider(
     private var baseUrl: String = DexcomRegions.US
 
     companion object {
-        // Well-known public Dexcom Share application ID, used by the DIY
-        // community for years (Nightscout, xDrip+, Loop, Spike, etc.).
-        // Not the same as the per-app GUIDs inside the G6/G7 APKs.
-        private const val APPLICATION_ID = "d89443d2-327c-4865-8335-5a21b165a614"
+        // Well-known public Dexcom Share application ID used by the DIY
+        // community (pydexcom, nightscout-connect, share2nightscout-bridge,
+        // xDrip+, Loop, Spike, ...). Not the same as the per-app GUIDs inside
+        // the G6/G7 APKs.
+        internal const val APPLICATION_ID = "d89443d2-327c-4a6f-89e5-496bbb0317db"
+        internal const val SESSION_INVALID_PREFIX = "Session"
+        internal const val ACCOUNT_PASSWORD_INVALID = "AccountPasswordInvalid"
+        internal const val SSO_AUTHENTICATE_PASSWORD_INVALID = "SSO_AuthenticatePasswordInvalid"
+        internal const val APPLICATION_NOT_AUTHENTICATED = "ApplicationNotAuthenticated"
         private const val TAG = "DexcomProvider"
     }
 
@@ -85,25 +101,48 @@ class DexcomProvider(
                 IllegalArgumentException("Dexcom requires ProviderCredentials.UsernamePassword")
             )
 
-        // Determine region from baseUrl field (reused as region selector).
-        // "ous" or any non-US value maps to the OUS endpoint.
-        baseUrl = DexcomRegions.urlForRegion(creds.baseUrl.ifBlank { "us" })
+        // Determine region from baseUrl field, which carries the region code
+        // ("us" / "ous") selected in the login screen. If a previously-stored
+        // full URL sneaks through, urlForCode falls back to US.
+        baseUrl = DexcomRegions.urlForCode(creds.baseUrl.ifBlank { "us" })
 
         return try {
             val service = buildApi(baseUrl)
-            val rawToken = service.login(
-                DexcomLoginRequest(
+
+            // Step 1: accountName -> accountId
+            val rawAccountId = service.authenticate(
+                DexcomAuthenticateRequest(
                     accountName = creds.username,
                     password = creds.password,
                     applicationId = APPLICATION_ID
                 )
             )
-            // The API returns the token as a JSON-quoted string ("abc123").
-            // Strip quotes if present.
-            sessionToken = rawToken.trim().trim('"')
+            val accountId = extractAccountId(rawAccountId)
+            if (accountId.isBlank()) {
+                return Result.failure(
+                    GlucoseError.ParseError("Dexcom returned no accountId: ${rawAccountId.take(120)}")
+                )
+            }
+
+            // Step 2: accountId -> sessionID
+            val rawSession = service.login(
+                DexcomLoginByIdRequest(
+                    accountId = accountId,
+                    password = creds.password,
+                    applicationId = APPLICATION_ID
+                )
+            )
+            val sessionId = rawSession.trim().trim('"')
+            if (sessionId.isBlank()) {
+                return Result.failure(GlucoseError.ParseError("Dexcom returned no sessionID"))
+            }
+
+            sessionToken = sessionId
             api = service
 
-            credentialStore.saveDexcomSession(sessionToken!!, baseUrl)
+            // Persist credentials (for re-auth) + the live session + region.
+            credentialStore.saveCredentials(Credentials(creds.username, creds.password, baseUrl))
+            credentialStore.saveDexcomSession(sessionId, baseUrl)
 
             Result.success(
                 ProviderSession(
@@ -116,6 +155,9 @@ class DexcomProvider(
             Result.failure(GlucoseError.NetworkError(e))
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
+        } catch (e: HttpException) {
+            classifyLoginError(e)?.let { return Result.failure(it) }
+            Result.failure(GlucoseError.ServerError(e.code(), e.message()))
         } catch (e: Exception) {
             Result.failure(GlucoseError.Unknown(e.message ?: "Login failed", e))
         }
@@ -129,8 +171,7 @@ class DexcomProvider(
             api = buildApi(url)
             sessionToken = token
             // Validate with a lightweight fetch
-            val test = fetchGlucoseInternal()
-            test.isSuccess
+            fetchGlucoseInternal().isSuccess
         } catch (_: Exception) {
             false
         }
@@ -142,11 +183,9 @@ class DexcomProvider(
 
         return try {
             val readings = service.fetchGlucose(
-                DexcomGlucoseRequest(
-                    sessionId = token,
-                    minutes = 1440,
-                    maxCount = 288
-                )
+                sessionId = token,
+                minutes = 1440,
+                maxCount = 288
             )
             if (readings.isEmpty()) return Result.failure(GlucoseError.NoData)
 
@@ -154,11 +193,12 @@ class DexcomProvider(
             if (valid.isEmpty()) return Result.failure(GlucoseError.NoData)
 
             val latest = valid.first()
-            val glucoseMmol = latest.Value!!.toDouble() / 18.0
+            val latestValue = latest.Value!!
+            val glucoseMmol = latestValue.toDouble() / 18.0
             val timestampSec = parseMsDate(latest.DT!!) / 1000L
             val trend = mapTrend(latest.Trend)
             val delta = if (valid.size >= 2) {
-                (latest.Value!!.toDouble() - valid[1].Value!!.toDouble()) / 18.0
+                (latestValue.toDouble() - valid[1].Value!!.toDouble()) / 18.0
             } else null
 
             val history = valid
@@ -185,12 +225,37 @@ class DexcomProvider(
             Result.failure(GlucoseError.NetworkError(e))
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
+        } catch (e: HttpException) {
+            // A bad/expired sessionID yields HTTP 400 (per share2nightscout-bridge
+            // tests) or a 500 carrying a Session* error code. Surface as
+            // SessionExpired so the polling service's re-auth branch can fire.
+            if (e.code() == 400 || (e.code() == 500 && hasSessionError(e))) {
+                Result.failure(GlucoseError.SessionExpired)
+            } else {
+                Result.failure(GlucoseError.ServerError(e.code(), e.message()))
+            }
         } catch (e: Exception) {
             Result.failure(GlucoseError.Unknown(e.message ?: "Fetch failed", e))
         }
     }
 
     private suspend fun fetchGlucoseInternal(): Result<GlucoseSnapshot> = fetchGlucose()
+
+    /**
+     * Re-run the two-step login from the persisted username/password. Used by
+     * the polling service when a fetch fails with [GlucoseError.SessionExpired].
+     */
+    suspend fun reAuthenticate(): Boolean {
+        val creds = credentialStore.getCredentials() ?: return false
+        return try {
+            val result = login(
+                ProviderCredentials.UsernamePassword(creds.username, creds.password, creds.baseUrl)
+            )
+            result.isSuccess
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     override fun logout() {
         sessionToken = null
@@ -220,5 +285,64 @@ class DexcomProvider(
         // Match digits after "("
         val match = Regex("/Date\\((\\d+)").find(dateStr)
         return match?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+    }
+
+    /**
+     * The authenticate endpoint normally returns the accountId as a bare
+     * JSON-quoted string (`"abc-123"`). Newer (G7-era) accounts return it
+     * wrapped in an object (`{"accountId":"abc-123"}`). Tolerate either shape
+     * by trying the object form first, then stripping quotes.
+     *
+     * Mirrors nightscout-connect's dexcomshare.js: if the parsed body is an
+     * object with `accountId`, return that; otherwise return the raw value.
+     */
+    internal fun extractAccountId(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.startsWith("{")) {
+            return try {
+                val obj = json.parseToJsonElement(trimmed).jsonObject
+                obj["accountId"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            } catch (_: Exception) {
+                ""
+            }
+        }
+        return trimmed.trim('"')
+    }
+
+    /**
+     * Map an HTTP failure from the auth endpoints to a typed [GlucoseError]:
+     *  - AccountPasswordInvalid / SSO_AuthenticatePasswordInvalid → InvalidCredentials
+     *  - ApplicationNotAuthenticated → ServerError (app ID rejected; misconfig)
+     * Returns null when the failure isn't recognized (caller falls back).
+     */
+    private fun classifyLoginError(e: HttpException): GlucoseError? {
+        val body = errorBody(e)
+        val code = substringBetween(body, "\"Code\":\"", "\"")
+            ?: substringBetween(body, "\"ErrorCode\":\"", "\"")
+        return when (code) {
+            ACCOUNT_PASSWORD_INVALID, SSO_AUTHENTICATE_PASSWORD_INVALID -> GlucoseError.InvalidCredentials
+            APPLICATION_NOT_AUTHENTICATED ->
+                GlucoseError.ServerError(e.code(), "Dexcom rejected the applicationId")
+            else -> null
+        }
+    }
+
+    private fun hasSessionError(e: HttpException): Boolean {
+        val body = errorBody(e)
+        val code = substringBetween(body, "\"Code\":\"", "\"")
+            ?: substringBetween(body, "\"ErrorCode\":\"", "\"")
+        return code != null && code.startsWith(SESSION_INVALID_PREFIX, ignoreCase = true)
+    }
+
+    private fun errorBody(e: HttpException): String =
+        try { e.response()?.errorBody()?.string() ?: "" } catch (_: Exception) { "" }
+
+    private fun substringBetween(haystack: String, prefix: String, suffix: String): String? {
+        val start = haystack.indexOf(prefix)
+        if (start < 0) return null
+        val valueStart = start + prefix.length
+        val end = haystack.indexOf(suffix, valueStart)
+        if (end < 0) return null
+        return haystack.substring(valueStart, end)
     }
 }

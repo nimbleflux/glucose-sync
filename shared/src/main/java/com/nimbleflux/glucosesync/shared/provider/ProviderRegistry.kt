@@ -38,9 +38,18 @@ object ProviderRegistry {
         ProviderConfig(
             id = "dexcom_share",
             displayName = "Dexcom",
-            description = "Dexcom retired the legacy Share login; a supported integration path is pending",
+            // The by-id Share flow is endpoint-identical to the Nightscout
+            // production bridge (share2nightscout-bridge), validated against
+            // the same failure responses. Works for Share-enabled accounts
+            // with a classic alphanumeric username.
+            // LIMITATION: G7-era accounts (email login, especially in Europe)
+            // authenticate via OAuth2/web-login and are NOT reachable through
+            // the Share password API — they return AccountPasswordInvalid with
+            // the correct password. The login screen surfaces this caveat;
+            // affected users should use the xDrip+ provider instead.
+            description = "Dexcom Share — requires a Share-enabled account",
             authType = AuthType.USERNAME_PASSWORD,
-            available = false,
+            available = true,
             icon = "\uD83D\uDCE1"
         ),
         ProviderConfig(

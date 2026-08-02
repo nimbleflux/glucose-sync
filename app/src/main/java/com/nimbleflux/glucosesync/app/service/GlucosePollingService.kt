@@ -15,6 +15,7 @@ import kotlinx.serialization.json.Json
 import com.nimbleflux.glucosesync.shared.provider.GlucoseError
 import com.nimbleflux.glucosesync.shared.provider.GlucoseProvider
 import com.nimbleflux.glucosesync.shared.provider.ProviderRegistry
+import com.nimbleflux.glucosesync.shared.provider.dexcom.DexcomProvider
 import com.nimbleflux.glucosesync.shared.provider.libre.LibreLinkUpProvider
 import com.nimbleflux.glucosesync.shared.wear.WatchPayload
 import com.nimbleflux.glucosesync.shared.wear.WatchPayloadCodec
@@ -243,6 +244,15 @@ class GlucosePollingService : android.app.Service() {
                             if (BuildConfig.DEBUG) Log.d(TAG, "LibreLinkUp re-auth succeeded")
                         } else {
                             if (BuildConfig.DEBUG) Log.e(TAG, "LibreLinkUp re-auth failed")
+                        }
+                    } else if (shouldReauth && p is DexcomProvider) {
+                        if (BuildConfig.DEBUG) Log.d(TAG, "Attempting Dexcom re-auth")
+                        val reAuthed = p.reAuthenticate()
+                        if (reAuthed) {
+                            credentialStore.saveSelectedProvider("dexcom_share")
+                            if (BuildConfig.DEBUG) Log.d(TAG, "Dexcom re-auth succeeded")
+                        } else {
+                            if (BuildConfig.DEBUG) Log.e(TAG, "Dexcom re-auth failed")
                         }
                     }
                 }

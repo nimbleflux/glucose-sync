@@ -32,6 +32,7 @@
     <string name="sign_in">Sign in</string>
     <string name="provider_not_supported">This provider is not yet supported.</string>
     <string name="credentials_privacy_note">Your credentials are stored locally and never shared.</string>
+    <string name="dexcom_share_note">Requires a Share-enabled Dexcom account with a classic username. Newer G7 email-login accounts (especially in Europe) sign in via the app only and aren\'t supported here — use xDrip+ for those sensors.</string>
     <string name="region_europe_global">Europe / Global</string>
     <string name="region_france">France</string>
 

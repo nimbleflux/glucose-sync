@@ -3,17 +3,17 @@ package com.nimbleflux.glucosesync.shared.provider.dexcom
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class DexcomLoginRequest(
+data class DexcomAuthenticateRequest(
     val accountName: String,
     val password: String,
     val applicationId: String
 )
 
 @Serializable
-data class DexcomGlucoseRequest(
-    val sessionId: String,
-    val minutes: Int,
-    val maxCount: Int
+data class DexcomLoginByIdRequest(
+    val accountId: String,
+    val password: String,
+    val applicationId: String
 )
 
 /**

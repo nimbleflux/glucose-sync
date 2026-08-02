@@ -37,7 +37,52 @@ class DexcomApiTest {
     }
 
     @Test
-    fun login_returnsSessionToken() = runBlocking {
+    fun authenticate_returnsBareAccountId() = runBlocking {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("\"account-id-from-step1\"")
+        )
+
+        val raw = api.authenticate(
+            DexcomAuthenticateRequest(
+                accountName = "user@example.com",
+                password = "pass",
+                applicationId = DexcomProvider.APPLICATION_ID
+            )
+        )
+
+        assertEquals("account-id-from-step1", raw.trim().trim('"'))
+    }
+
+    @Test
+    fun authenticate_sendsCorrectShape() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody("\"acct\"")
+        )
+
+        api.authenticate(
+            DexcomAuthenticateRequest("user@example.com", "pass", DexcomProvider.APPLICATION_ID)
+        )
+
+        val recorded = server.takeRequest()
+        val body = recorded.body.readUtf8()
+        assertTrue("Body must include accountName", body.contains("user@example.com"))
+        assertTrue("Body must include applicationId", body.contains(DexcomProvider.APPLICATION_ID))
+        assertEquals("Must be POST", "POST", recorded.method)
+        assertTrue(
+            "Path must hit AuthenticatePublisherAccount",
+            recorded.path!!.contains("General/AuthenticatePublisherAccount")
+        )
+        // The two endpoints MUST NOT be the deprecated by-name login.
+        assertTrue(
+            "Must not use deprecated LoginPublisherAccountByName",
+            !recorded.path!!.contains("LoginPublisherAccountByName")
+        )
+    }
+
+    @Test
+    fun login_usesAccountIdAndReturnsSessionToken() = runBlocking {
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
@@ -45,33 +90,23 @@ class DexcomApiTest {
         )
 
         val token = api.login(
-            DexcomLoginRequest(
-                accountName = "user@example.com",
+            DexcomLoginByIdRequest(
+                accountId = "acct-123",
                 password = "pass",
-                applicationId = "d89443d2-327c-4865-8335-5a21b165a614"
+                applicationId = DexcomProvider.APPLICATION_ID
             )
         )
 
         assertEquals("abc123-session-token", token.trim().trim('"'))
-    }
-
-    @Test
-    fun login_sendsApplicationId() = runBlocking {
-        server.enqueue(
-            MockResponse().setResponseCode(200).setBody("\"token\"")
-        )
-
-        api.login(
-            DexcomLoginRequest("user", "pass", "test-app-id")
-        )
 
         val recorded = server.takeRequest()
         val body = recorded.body.readUtf8()
-        assertTrue("Body must include accountName", body.contains("user"))
-        assertTrue("Body must include applicationId", body.contains("test-app-id"))
-        assertTrue("Must be POST", recorded.method == "POST")
-        assertTrue("Path must include login endpoint",
-            recorded.path!!.contains("General/LoginPublisherAccountByName"))
+        assertTrue("Body must include accountId (not accountName)", body.contains("accountId"))
+        assertTrue("Body must include the account id value", body.contains("acct-123"))
+        assertTrue(
+            "Path must hit LoginPublisherAccountById",
+            recorded.path!!.contains("General/LoginPublisherAccountById")
+        )
     }
 
     @Test
@@ -89,9 +124,7 @@ class DexcomApiTest {
                 )
         )
 
-        val readings = api.fetchGlucose(
-            DexcomGlucoseRequest(sessionId = "token", minutes = 1440, maxCount = 288)
-        )
+        val readings = api.fetchGlucose(sessionId = "token", minutes = 1440, maxCount = 288)
 
         assertEquals(2, readings.size)
         // Newest first per Dexcom API convention
@@ -108,29 +141,33 @@ class DexcomApiTest {
             MockResponse().setResponseCode(200).setBody("[]")
         )
 
-        val readings = api.fetchGlucose(
-            DexcomGlucoseRequest(sessionId = "token", minutes = 60, maxCount = 10)
-        )
+        val readings = api.fetchGlucose(sessionId = "token", minutes = 60, maxCount = 10)
 
         assertTrue(readings.isEmpty())
     }
 
     @Test
-    fun fetchGlucose_sendsSessionIdInBody() = runBlocking {
+    fun fetchGlucose_sendsSessionIdAsQueryParam() = runBlocking {
         server.enqueue(
             MockResponse().setResponseCode(200).setBody("[]")
         )
 
-        api.fetchGlucose(
-            DexcomGlucoseRequest(sessionId = "my-session", minutes = 60, maxCount = 10)
-        )
+        api.fetchGlucose(sessionId = "my-session", minutes = 60, maxCount = 10)
 
         val recorded = server.takeRequest()
+        val path = recorded.path!!
+        // sessionID must travel as a query parameter, NOT in the JSON body.
+        assertTrue("sessionID must be a query param", path.contains("sessionID=my-session"))
+        assertTrue("minutes must be a query param", path.contains("minutes=60"))
+        assertTrue("maxCount must be a query param", path.contains("maxCount=10"))
+        assertEquals("Must be POST even though it's a read", "POST", recorded.method)
+        assertTrue(
+            "Path must hit glucose endpoint",
+            path.contains("Publisher/ReadPublisherLatestGlucoseValues")
+        )
+        // Body should be empty (Content-Length: 0), not a JSON object with sessionId.
         val body = recorded.body.readUtf8()
-        assertTrue("Body must include sessionId", body.contains("my-session"))
-        assertTrue("Must be POST", recorded.method == "POST")
-        assertTrue("Path must include glucose endpoint",
-            recorded.path!!.contains("Publisher/ReadPublisherLatestGlucoseValues"))
+        assertTrue("Body should be empty, not carry sessionId", !body.contains("my-session"))
     }
 
     @Test
@@ -141,13 +178,44 @@ class DexcomApiTest {
                 .setBody("""[{"DT":"/Date(1700000000000)/","Value":100}]""")
         )
 
-        val readings = api.fetchGlucose(
-            DexcomGlucoseRequest(sessionId = "token", minutes = 60, maxCount = 10)
-        )
+        val readings = api.fetchGlucose(sessionId = "token", minutes = 60, maxCount = 10)
 
         assertEquals(1, readings.size)
         assertEquals(100, readings[0].Value)
         // Trend null when absent
         assertEquals(null, readings[0].Trend)
+    }
+
+    // ---- Provider-level response-parsing tests ----
+
+    private val provider = DexcomProvider(android.app.Application())
+
+    @Test
+    fun extractAccountId_bareQuotedString() {
+        assertEquals("acct-123", provider.extractAccountId("\"acct-123\""))
+    }
+
+    @Test
+    fun extractAccountId_bareUnquotedString() {
+        assertEquals("acct-123", provider.extractAccountId("acct-123"))
+    }
+
+    @Test
+    fun extractAccountId_g7EraObjectResponse() {
+        // Newer G7-era accounts wrap accountId in an object. This is the shape
+        // nightscout-connect explicitly handles.
+        val body = """{"accountId":"7a8b9c0d-1234-5678-9abc-def012345678"}"""
+        assertEquals("7a8b9c0d-1234-5678-9abc-def012345678", provider.extractAccountId(body))
+    }
+
+    @Test
+    fun extractAccountId_g7EraObjectWithExtraFields() {
+        val body = """{"accountId":"acct-xyz","accountType":"publisher"}"""
+        assertEquals("acct-xyz", provider.extractAccountId(body))
+    }
+
+    @Test
+    fun extractAccountId_emptyObjectYieldsBlank() {
+        assertEquals("", provider.extractAccountId("{}"))
     }
 }
