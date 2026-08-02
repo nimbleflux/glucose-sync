@@ -30,10 +30,16 @@ class ProviderRegistryTest {
     }
 
     @Test
-    fun dexcom_isMarkedUnavailableUntilSupportedIntegrationExists() {
-        // Dexcom retired the legacy Share username/password login (HTTP 500
-        // ApplicationNotAuthenticated on every region). It is gated off in the
-        // picker until a supported path (e.g. the v3 OAuth API) lands.
-        assertFalse(ProviderRegistry.getConfig("dexcom_share")!!.available)
+    fun dexcom_isAvailable() {
+        // The by-id Share flow (AuthenticatePublisherAccount ->
+        // LoginPublisherAccountById) is endpoint-identical to the Nightscout
+        // production bridge (share2nightscout-bridge), validated against the
+        // same AccountPasswordInvalid response for non-Share accounts.
+        // Enabled for Share-enabled accounts with a classic username.
+        // Known limitation: G7-era email-login accounts (notably in Europe)
+        // authenticate via OAuth2/web-login and are unreachable via the Share
+        // password API — the login screen surfaces this caveat, and affected
+        // users are pointed at the xDrip+ provider.
+        assertTrue(ProviderRegistry.getConfig("dexcom_share")!!.available)
     }
 }

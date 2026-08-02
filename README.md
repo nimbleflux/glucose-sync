@@ -23,7 +23,7 @@
 
 ## Features
 
-- **Multi-provider support** — Medtrum and LibreLinkUp, with Nightscout, Dexcom, and xDrip+ planned
+- **Multi-provider support** — Medtrum, LibreLinkUp, Nightscout, Dexcom (Share), and xDrip+
 - **Real-time glucose** — Current value, trend arrows, and configurable delta (1/5/10/15 min window)
 - **24-hour history chart** — Color-coded steepness segments, round time labels, data point dots
 - **Wear OS app** — Glucose, sparkline, stats, pump info, and sensor battery on your wrist
@@ -51,8 +51,8 @@
 | **Medtrum** | Supported | CGM + pump data, carer monitoring |
 | **LibreLinkUp** | Supported | Multi-patient, region-aware |
 | **Nightscout** | Supported | Self-hosted, API token auth |
-| **Dexcom** | Planned | |
-| **xDrip+** | Planned | |
+| **Dexcom** | Supported | Share API; requires a Share-enabled account (classic username). G7 email-login accounts (especially Europe) unsupported — use xDrip+ |
+| **xDrip+** | Supported | Direct sensor access via Bluetooth — no cloud account needed; covers Libre 1/2/3, Dexcom G5/G6/G7 |
 
 > **⚠️ Important: GlucoseSync is a companion app, not a standalone CGM.**
 > It does not read sensor data directly from your CGM hardware. It fetches

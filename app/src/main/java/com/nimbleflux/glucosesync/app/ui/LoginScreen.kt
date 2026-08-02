@@ -26,6 +26,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nimbleflux.glucosesync.app.R
 import com.nimbleflux.glucosesync.shared.provider.AuthType
+import com.nimbleflux.glucosesync.shared.provider.dexcom.DexcomRegions
 import com.nimbleflux.glucosesync.shared.provider.libre.LibreRegions
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,6 +52,7 @@ fun LoginScreen(
 
     val regions = when (providerId) {
         "libre_linkup" -> LibreRegions.all.map { it.displayName to it.url }
+        "dexcom_share" -> DexcomRegions.all.map { it.displayName to it.code }
         else -> listOf(
             stringResource(R.string.region_europe_global) to "https://easyview.medtrum.eu",
             stringResource(R.string.region_france) to "https://easyview.medtrum.fr"
@@ -58,6 +60,7 @@ fun LoginScreen(
     }
     val regionIcons = when (providerId) {
         "libre_linkup" -> LibreRegions.all.map { "\uD83C\uDF10" }
+        "dexcom_share" -> DexcomRegions.all.map { "\uD83C\uDF10" }
         else -> listOf("\uD83C\uDF0D", "\uD83C\uDDEB\uD83C\uDDF7")
     }
 
@@ -208,6 +211,19 @@ fun LoginScreen(
                                 }
                             }
                         }
+                    }
+
+                    // Dexcom Share caveat: G7-era email-login accounts
+                    // (especially in Europe) can't use the Share password API
+                    // and will see "invalid password" with the correct
+                    // password. Surface this up front so users don't churn.
+                    if (providerId == "dexcom_share") {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(R.string.dexcom_share_note),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
