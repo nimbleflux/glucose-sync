@@ -164,13 +164,7 @@ class MainActivity : ComponentActivity() {
                     state.selectedProviderId == "xdrip" && !state.isLoggedIn -> {
                         BackHandler { viewModel.showProviderPicker() }
                         XdripSetupScreen(
-                            checking = state.xdripChecking,
-                            checkResult = state.xdripCheckResult,
-                            elapsedSec = state.xdripElapsedSec,
-                            broadcastsSeen = state.xdripBroadcastsSeen,
-                            broadcastsAccepted = state.xdripBroadcastsAccepted,
-                            onCheckConnection = { viewModel.checkXdripConnection() },
-                            onConnected = { },
+                            onContinue = { viewModel.continueXdrip() },
                             onBack = { viewModel.showProviderPicker() }
                         )
                     }
