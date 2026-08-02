@@ -164,7 +164,16 @@ fun XdripSetupScreen(
             SetupStep(
                 number = 3,
                 title = "Enable broadcasting",
-                description = "In xDrip+ → ⚙ Settings → Inter-App Settings → turn ON \"Broadcast Locally\""
+                description = "In xDrip+ → ⚙ Settings → Inter-App Settings → turn ON \"Broadcast Locally\". " +
+                    "Broadcasts are delivered automatically — no \"Identify receiver\" step needed."
+            )
+
+            SetupStep(
+                number = 4,
+                title = "Enable history backfill (optional)",
+                description = "In the same Inter-App Settings screen, turn ON \"xDrip Web Service\". " +
+                    "This lets GlucoseSync backfill up to 24h of chart history on connect. " +
+                    "Without it, the chart fills point-by-point as new readings arrive (~5 min apart)."
             )
 
             Spacer(modifier = Modifier.height(24.dp))
