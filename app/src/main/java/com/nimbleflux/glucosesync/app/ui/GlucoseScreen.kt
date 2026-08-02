@@ -887,13 +887,26 @@ private fun sendMockXdripReading(context: android.content.Context, counter: Int)
     val glucoseMgDl = baseMgDl + amplitudeMgDl * kotlin.math.sin(t)
     // Derivative of the sine -> gives a realistic slope (mg/dL per minute)
     val slopeMgDlPerMin = amplitudeMgDl * 0.4 * kotlin.math.cos(t)
-    val deltaMgDl = slopeMgDlPerMin * 5.0 // approximate 5-min delta
 
-    val intent = android.content.Intent("com.eveningoutpost.dexdrip.BgReading").apply {
-        putExtra("bgValue", glucoseMgDl.toFloat())
-        putExtra("bgSlope", slopeMgDlPerMin)
-        putExtra("bgDelta", deltaMgDl.toFloat())
-        putExtra("bgTimestamp", System.currentTimeMillis())
+    // Simulate a stock xDrip+ broadcast: the BgEstimate action with the
+    // fully-qualified Extras.* keys the real app emits (see
+    // com.eveningoutpost.dexdrip.utilitymodels.Intents / BroadcastGlucose).
+    val trendName = when {
+        slopeMgDlPerMin > 3.0 -> "DoubleUp"
+        slopeMgDlPerMin > 2.0 -> "SingleUp"
+        slopeMgDlPerMin > 1.0 -> "FortyFiveUp"
+        slopeMgDlPerMin > -1.0 -> "Flat"
+        slopeMgDlPerMin > -2.0 -> "FortyFiveDown"
+        slopeMgDlPerMin > -3.0 -> "SingleDown"
+        else -> "DoubleDown"
+    }
+
+    val intent = android.content.Intent("com.eveningoutpost.dexdrip.BgEstimate").apply {
+        putExtra("com.eveningoutpost.dexdrip.Extras.BgEstimate", glucoseMgDl)
+        putExtra("com.eveningoutpost.dexdrip.Extras.Time", System.currentTimeMillis())
+        putExtra("com.eveningoutpost.dexdrip.Extras.BgSlope", slopeMgDlPerMin)
+        putExtra("com.eveningoutpost.dexdrip.Extras.BgSlopeName", trendName)
+        putExtra("com.eveningoutpost.dexdrip.Extras.SensorBattery", 80)
     }
     context.sendBroadcast(intent)
 }
