@@ -237,6 +237,11 @@ class XdripBroadcastProvider(
 
     override suspend fun login(credentials: ProviderCredentials): Result<ProviderSession> {
         enableBroadcasts()
+        // Backfill on first-time setup too (not just restoreSession) so the
+        // Check Connection flow can succeed immediately from historic data,
+        // and the chart renders as soon as the user lands on the dashboard —
+        // no need to wait ~5 min for the first live broadcast.
+        backfillHistory()
         return Result.success(
             ProviderSession(
                 providerId = id,
@@ -256,9 +261,12 @@ class XdripBroadcastProvider(
 
     /**
      * Pull up to 24h of historic SGV entries from xDrip+'s local Web Service
-     * and merge them into [accumulatedHistory]. Best-effort: any failure
-     * (service disabled, wrong secret, parse error) is swallowed so the
-     * provider keeps working in broadcast-only mode.
+     * and merge them into [accumulatedHistory]. Also seeds [lastReading] from
+     * the newest entry when no live broadcast has arrived yet, so the chart
+     * and current value can render immediately instead of waiting up to 5 min
+     * for the first broadcast. Best-effort: any failure (service disabled,
+     * wrong secret, parse error) is swallowed so the provider keeps working
+     * in broadcast-only mode.
      */
     private suspend fun backfillHistory() {
         try {
@@ -267,6 +275,9 @@ class XdripBroadcastProvider(
             if (entries.isEmpty()) return
 
             val cutoff = System.currentTimeMillis() / 1000 - 86_400L
+            var newestMs: Long = 0
+            var newestMgdl: Int = 0
+            var newestDirection: String? = null
             entries.forEach { e ->
                 val ms = e.date ?: return@forEach
                 val mgdl = e.sgv ?: return@forEach
@@ -278,12 +289,33 @@ class XdripBroadcastProvider(
                 // broadcast that arrived between process start and this call.
                 accumulatedHistory.removeAll { it.timestamp == ts }
                 accumulatedHistory.add(GlucoseHistoryPoint(ts, mmol))
+                if (ms > newestMs) {
+                    newestMs = ms
+                    newestMgdl = mgdl
+                    newestDirection = e.direction
+                }
             }
             accumulatedHistory.sortBy { it.timestamp }
+
+            // Seed a current reading from the newest historic entry so the
+            // chart/value can render before the first live broadcast arrives.
+            // A real broadcast later overwrites lastReading with fresher data
+            // (and typically a transmitter battery + slope-derived delta that
+            // the Web Service doesn't expose).
+            if (newestMs > 0 && lastReading == null) {
+                lastReading = BgReading(
+                    glucoseMgDl = newestMgdl.toDouble(),
+                    timestampMs = newestMs,
+                    deltaMgDl = null,
+                    trend = mapSlopeName(newestDirection)
+                )
+            }
+
             if (debug) {
                 android.util.Log.d(
                     TAG,
-                    "xDrip Web Service backfill: ${accumulatedHistory.size} points"
+                    "xDrip Web Service backfill: ${accumulatedHistory.size} points" +
+                        (if (lastReading != null) ", seeded lastReading" else "")
                 )
             }
         } catch (e: java.io.IOException) {
