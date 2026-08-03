@@ -417,6 +417,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Called from [com.nimbleflux.glucosesync.app.ui.MainActivity]'s ON_RESUME
+     * lifecycle observer. Triggers an immediate refresh when logged in (not
+     * demo), so returning to the app surfaces fresh data right away instead
+     * of waiting up to 60s for the next auto-refresh tick.
+     *
+     * For xDrip+ this is especially important: [refreshGlucose] →
+     * [XdripBroadcastProvider.fetchGlucose] now re-pulls from the xDrip Web
+     * Service when the cached reading is stale, so a reading missed while the
+     * process was backgrounded/killed is recovered on resume. The auto-refresh
+     * loop is gated on foreground state, so this is the path that fires the
+     * moment the user comes back.
+     *
+     * Idempotent: [refreshMutex] serializes concurrent calls, so overlapping
+     * resume + auto-refresh ticks don't double-fetch.
+     */
+    fun onAppResume() {
+        if (_uiState.value.isLoggedIn && !_uiState.value.isDemo) {
+            refreshGlucose()
+        }
+    }
+
     fun refreshGlucose() {
         if (_uiState.value.isDemo) {
             refreshDemoGlucose()
@@ -604,6 +626,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         demoPollingJob?.cancel()
         autoRefreshJob?.cancel()
         provider?.logout()
+        // Clear the persisted xDrip reading so a future session/provider
+        // doesn't seed the dashboard from a stale captured value.
+        runCatching {
+            com.nimbleflux.glucosesync.shared.provider.xdrip.XdripLatestReadingStore(getApplication()).clear()
+        }
         // Cancel the WorkManager keepalive too - otherwise it would resurrect
         // the FGS within 15 minutes of logout, defeating the user's intent.
         com.nimbleflux.glucosesync.app.service.PollingWorker.cancel(getApplication())

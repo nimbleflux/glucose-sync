@@ -59,5 +59,34 @@
             android:name=".receiver.PollingAlarmReceiver"
             android:exported="false" />
 
+        <!-- Manifest-declared receiver for xDrip+/Diabox glucose broadcasts.
+             This is the durability backstop for the runtime receiver in
+             XdripBroadcastProvider: it captures broadcasts even while the
+             GlucoseSync process is otherwise idle (Doze, post-kill, etc.),
+             persists the reading so it survives process death, and ensures
+             the polling service is running.
+
+             android:exported="true" (required on API 31+) because xDrip+ is a
+             different app. The action (com.eveningoutpost.dexdrip.BgEstimate)
+             is a custom action, so the Android 8.0+ implicit-broadcast ban
+             does NOT apply — a manifest receiver can legitimately receive it.
+
+             No android:permission is set here, matching the runtime receiver
+             (RECEIVER_EXPORTED with no sender-side check). xDrip+'s send is
+             permission-gated on the RECEIVER side via sendBroadcast(intent,
+             RECEIVER_PERMISSION); our <uses-permission> for
+             RECEIVE_BG_ESTIMATE (declared above) is what lets that delivery
+             through. Adding a sender-side check here would be stricter than
+             the runtime receiver and could drop Diabox-style BgReading
+             broadcasts (which don't hold xDrip+'s custom permission). -->
+        <receiver
+            android:name=".receiver.XdripBroadcastReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.eveningoutpost.dexdrip.BgEstimate" />
+                <action android:name="com.eveningoutpost.dexdrip.BgReading" />
+            </intent-filter>
+        </receiver>
+
     </application>
 </manifest>
