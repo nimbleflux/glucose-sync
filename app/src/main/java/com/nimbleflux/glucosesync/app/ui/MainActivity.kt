@@ -49,12 +49,19 @@ class MainActivity : ComponentActivity() {
             // permission dialog, system Settings, or the "Grant" button in
             // our banner — any of those paths resumes the app and should
             // make the banner disappear if permission was granted.
+            //
+            // ON_RESUME also triggers an immediate glucose refresh, which is
+            // how the xDrip+ source recovers readings missed while the app
+            // was backgrounded (the refresh re-pulls from the Web Service
+            // when the cached value is stale, and the manifest receiver has
+            // meanwhile persisted any broadcasts that landed).
             val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
             var resumeTick by remember { mutableIntStateOf(0) }
             LaunchedEffect(lifecycleOwner) {
                 val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
                     if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                         resumeTick++
+                        viewModel.onAppResume()
                     }
                 }
                 lifecycleOwner.lifecycle.addObserver(observer)
