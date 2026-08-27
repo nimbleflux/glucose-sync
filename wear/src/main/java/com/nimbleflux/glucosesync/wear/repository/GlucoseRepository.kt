@@ -101,8 +101,8 @@ class GlucoseRepository private constructor(context: Context) {
             .apply { remainingDose?.let { putFloat(KEY_REMAINING_DOSE, it.toFloat()) } }
             .apply { highThreshold?.let { putFloat(KEY_HIGH_THRESHOLD, it.toFloat()) } }
             .apply { lowThreshold?.let { putFloat(KEY_LOW_THRESHOLD, it.toFloat()) } }
-            .apply { timeInRange?.let { putFloat(KEY_TIME_IN_RANGE, it.toFloat()) } }
-            .apply { averageGlucose?.let { putFloat(KEY_AVERAGE_GLUCOSE, it.toFloat()) } }
+            .apply { timeInRange?.let { putFloat(KEY_TIME_IN_RANGE, it.toFloat()) } ?: remove(KEY_TIME_IN_RANGE) }
+            .apply { averageGlucose?.let { putFloat(KEY_AVERAGE_GLUCOSE, it.toFloat()) } ?: remove(KEY_AVERAGE_GLUCOSE) }
             .apply()
         val updatedHistory = if (history != null) {
             history.trimTo2h()

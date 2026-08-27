@@ -27,6 +27,7 @@ import com.nimbleflux.glucosesync.shared.domain.AlertEntry
 import com.nimbleflux.glucosesync.shared.domain.GlucoseHistoryPoint
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -293,7 +294,7 @@ private fun ActiveSection(
             val g = if (unit == "mg/dL") it.glucoseMmol * 18 else it.glucoseMmol
             g >= lowThreshold && g <= highThreshold
         }
-        inRangeCount * 100 / windowedHistory.size
+        (inRangeCount * 100.0 / windowedHistory.size).roundToInt()
     } else 0
     val windowedAvg = windowedHistory.takeIf { it.isNotEmpty() }
         ?.map { if (unit == "mg/dL") it.glucoseMmol * 18 else it.glucoseMmol }
@@ -408,7 +409,7 @@ private fun ActiveSection(
                     val minV = windowedHistory.minOf { it.glucoseMmol }
                     val maxV = windowedHistory.maxOf { it.glucoseMmol }
                     val inRangeCount = windowedHistory.count { it.glucoseMmol in lowThreshold..highThreshold }
-                    val pct = (inRangeCount * 100) / windowedHistory.size
+                    val pct = (inRangeCount * 100.0 / windowedHistory.size).roundToInt()
                     "$windowHours hour glucose chart. Min ${"%.1f".format(minV)}, max ${"%.1f".format(maxV)}, $pct percent in range."
                 } else {
                     "$windowHours hour glucose chart. Not enough data yet."

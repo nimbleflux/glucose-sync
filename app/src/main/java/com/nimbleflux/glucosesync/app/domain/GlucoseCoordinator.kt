@@ -88,7 +88,7 @@ class GlucoseCoordinator(
      * Push a snapshot to the watch without going through the provider fetch
      * pipeline. Used by demo mode, where the snapshot is synthesised locally.
      */
-    fun pushToWatch(
+    suspend fun pushToWatch(
         snapshot: GlucoseSnapshot,
         history: List<GlucoseHistoryPoint>,
         trendSymbol: String,
@@ -99,13 +99,20 @@ class GlucoseCoordinator(
         }
     }
 
-    private fun syncToWatch(
+    private suspend fun syncToWatch(
         snapshot: GlucoseSnapshot,
         history: List<GlucoseHistoryPoint>,
         trendSymbol: String,
         delta: Double?
     ) {
         try {
+            // Stats are computed from the merged history with the app's
+            // thresholds — the same basis the phone UI uses — so the watch
+            // shows the same numbers for every provider. Only Medtrum and
+            // DemoData ever set them on the snapshot, and Medtrum's use the
+            // pump's own thresholds, which would disagree with the phone.
+            val lowThreshold = try { settingsStore.getLowThresholdMmol() } catch (_: Exception) { 3.9 }
+            val highThreshold = try { settingsStore.getHighThresholdMmol() } catch (_: Exception) { 10.0 }
             val payload = WatchPayload(
                 glucose = snapshot.glucose ?: return,
                 timestamp = snapshot.timestamp,
@@ -120,8 +127,8 @@ class GlucoseCoordinator(
                 remainingDose = snapshot.remainingDose,
                 highThreshold = snapshot.highThreshold,
                 lowThreshold = snapshot.lowThreshold,
-                timeInRange = snapshot.timeInRange,
-                averageGlucose = snapshot.averageGlucose,
+                timeInRange = GlucoseAggregator.computeTimeInRange(history, lowThreshold, highThreshold),
+                averageGlucose = history.takeIf { it.isNotEmpty() }?.map { it.glucoseMmol }?.average(),
                 history = GlucoseAggregator.trimHistory(history, WatchPayloadCodec.MAX_HISTORY_AGE_SEC)
             )
             val dataClient = Wearable.getDataClient(context)
