@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/java:3.0.8-25
+FROM mcr.microsoft.com/devcontainers/java:3.1.3-25
 
 ENV ANDROID_HOME=/opt/android-sdk
 ENV PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${PATH}"
