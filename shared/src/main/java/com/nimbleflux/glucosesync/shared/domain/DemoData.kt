@@ -91,7 +91,7 @@ object DemoData {
     private fun computeTIR(history: List<GlucoseHistoryPoint>): Double {
         if (history.isEmpty()) return 0.0
         val inRange = history.count { it.glucoseMmol in 3.9..10.0 }
-        return inRange.toDouble() / history.size * 100.0
+        return inRange.toDouble() / history.size
     }
 
     private fun computeAverage(history: List<GlucoseHistoryPoint>): Double {

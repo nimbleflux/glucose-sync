@@ -153,6 +153,45 @@ class GlucoseAggregatorTest {
     }
 
     @Test
+    fun computeTimeInRange_returnsNullForEmptyHistory() {
+        assertNull(GlucoseAggregator.computeTimeInRange(emptyList(), lowMmol = 3.9, highMmol = 10.0))
+    }
+
+    @Test
+    fun computeTimeInRange_returnsFractionNotPercent() {
+        val history = listOf(
+            GlucoseHistoryPoint(timestamp = 0L, glucoseMmol = 5.0),
+            GlucoseHistoryPoint(timestamp = 300L, glucoseMmol = 6.0),
+            GlucoseHistoryPoint(timestamp = 600L, glucoseMmol = 7.0),
+            GlucoseHistoryPoint(timestamp = 900L, glucoseMmol = 12.0) // out of range
+        )
+        val tir = GlucoseAggregator.computeTimeInRange(history, lowMmol = 3.9, highMmol = 10.0)
+        assertEquals(0.75, tir!!, 0.0001)
+    }
+
+    @Test
+    fun computeTimeInRange_countsBoundaryValuesAsInRange() {
+        val history = listOf(
+            GlucoseHistoryPoint(timestamp = 0L, glucoseMmol = 3.9),  // exactly low
+            GlucoseHistoryPoint(timestamp = 300L, glucoseMmol = 10.0), // exactly high
+            GlucoseHistoryPoint(timestamp = 600L, glucoseMmol = 3.89), // just below
+            GlucoseHistoryPoint(timestamp = 900L, glucoseMmol = 10.01) // just above
+        )
+        val tir = GlucoseAggregator.computeTimeInRange(history, lowMmol = 3.9, highMmol = 10.0)
+        assertEquals(0.5, tir!!, 0.0001)
+    }
+
+    @Test
+    fun computeTimeInRange_allOutOfRange_returnsZero() {
+        val history = listOf(
+            GlucoseHistoryPoint(timestamp = 0L, glucoseMmol = 2.0),
+            GlucoseHistoryPoint(timestamp = 300L, glucoseMmol = 15.0)
+        )
+        val tir = GlucoseAggregator.computeTimeInRange(history, lowMmol = 3.9, highMmol = 10.0)
+        assertEquals(0.0, tir!!, 0.0001)
+    }
+
+    @Test
     fun resolveTrend_passesThroughNonUnknown() {
         assertEquals(
             TrendArrow.RISING,

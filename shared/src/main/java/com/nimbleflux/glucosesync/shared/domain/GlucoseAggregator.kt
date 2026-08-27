@@ -56,6 +56,21 @@ object GlucoseAggregator {
     }
 
     /**
+     * Fraction of readings within [lowMmol, highMmol] (inclusive), as 0..1.
+     * Null when the history is empty. Both history values and thresholds are
+     * mmol/L, so no unit conversion applies here.
+     */
+    fun computeTimeInRange(
+        history: List<GlucoseHistoryPoint>,
+        lowMmol: Double,
+        highMmol: Double
+    ): Double? {
+        if (history.isEmpty()) return null
+        val inRange = history.count { it.glucoseMmol in lowMmol..highMmol }
+        return inRange.toDouble() / history.size
+    }
+
+    /**
      * Per-minute glucose rate from the last two history points, in mmol/L/min.
      * Null when insufficient history or when the last two points have an
      * identical timestamp (would divide by zero).

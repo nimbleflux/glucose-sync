@@ -19,6 +19,7 @@ data class WatchPayload(
     val remainingDose: Double? = null,
     val highThreshold: Double? = null,
     val lowThreshold: Double? = null,
+    /** Fraction of readings in range, 0..1 — not a percentage. */
     val timeInRange: Double? = null,
     val averageGlucose: Double? = null,
     val history: List<GlucoseHistoryPoint> = emptyList()

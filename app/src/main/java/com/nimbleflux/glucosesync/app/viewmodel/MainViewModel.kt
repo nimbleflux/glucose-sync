@@ -386,7 +386,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         snapshot.glucose?.let { _ ->
-            coordinator.pushToWatch(snapshot, trimmed, snapshot.trend.symbol, snapshot.delta)
+            viewModelScope.launch {
+                coordinator.pushToWatch(snapshot, trimmed, snapshot.trend.symbol, snapshot.delta)
+            }
         }
     }
 
