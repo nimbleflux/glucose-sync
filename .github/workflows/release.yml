@@ -45,7 +45,7 @@ jobs:
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Set up JDK 17
+      - name: Set up JDK 25
         uses: actions/setup-java@v6
         with:
           java-version: '25'
@@ -53,6 +53,8 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          packages: cmdline-tools platform-tools
 
       - name: Cache Gradle packages
         uses: actions/cache@v6
