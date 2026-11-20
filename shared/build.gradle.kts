@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "com.nimbleflux.glucosesync.shared"
     compileSdk = 37
+    compileSdkMinor = 2
 
     defaultConfig {
         minSdk = 26
