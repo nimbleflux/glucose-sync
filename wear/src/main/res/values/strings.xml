@@ -7,6 +7,8 @@
     <string name="waiting_no_phone">No phone connected</string>
     <string name="waiting_no_phone_hint">Check that your phone is on and GlucoseSync is running</string>
 
+    <string name="watch_settings_hint">Only affects this watch. Changes apply immediately.</string>
+
     <string name="complication_title_glucose">Glucose</string>
     <string name="complication_content_description_glucose">Glucose %1$s %2$s</string>
     <string name="complication_content_description_glucose_range">Glucose %1$s target range</string>

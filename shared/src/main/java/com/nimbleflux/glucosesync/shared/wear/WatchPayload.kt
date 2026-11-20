@@ -35,7 +35,16 @@ data class WatchPayload(
 object WatchPayloadCodec {
 
     const val PATH = "/glucose"
-    const val MAX_HISTORY_AGE_SEC = 7_200L
+
+    /**
+     * How much history the phone pushes with every sync. 24h so the watch
+     * can render its graph and compute windowed stats (TIR/average) over
+     * the windows the user picks in the watch app — the watch trims this
+     * down to whatever it actually displays. ~288 points at 5-min sampling
+     * (~3.5 KB), ~1.4k points at 1-min (~20 KB), both well under the Wear
+     * Data API per-item limit.
+     */
+    const val MAX_HISTORY_AGE_SEC = 86_400L
 
     private const val KEY_GLUCOSE = "glucose"
     private const val KEY_TIMESTAMP = "timestamp"

@@ -65,8 +65,8 @@ class GlucoseRepository private constructor(context: Context) {
         }
     }
 
-    private fun List<Pair<Long, Double>>.trimTo2h(): List<Pair<Long, Double>> {
-        val cutoff = System.currentTimeMillis() / 1000 - 7200
+    private fun List<Pair<Long, Double>>.trimToMaxWindow(): List<Pair<Long, Double>> {
+        val cutoff = System.currentTimeMillis() / 1000 - MAX_WINDOW_SEC
         return this.filter { it.first >= cutoff }
     }
 
@@ -111,11 +111,11 @@ class GlucoseRepository private constructor(context: Context) {
             .apply { averageGlucose?.let { putFloat(KEY_AVERAGE_GLUCOSE, it.toFloat()) } ?: remove(KEY_AVERAGE_GLUCOSE) }
             .apply()
         val updatedHistory = if (history != null) {
-            history.trimTo2h()
+            history.trimToMaxWindow()
         } else {
             val existing = _state.value.history.toMutableList()
             existing.add(timestamp to glucose)
-            existing.trimTo2h()
+            existing.trimToMaxWindow()
         }
         persistHistory(updatedHistory)
         _state.value = WatchGlucoseState(
@@ -317,7 +317,7 @@ class GlucoseRepository private constructor(context: Context) {
         val timestamps = ts.split(",").mapNotNull { it.toLongOrNull() }
         val glucoses = gl.split(",").mapNotNull { it.toDoubleOrNull() }
         if (timestamps.size != glucoses.size) return emptyList()
-        val cutoff = System.currentTimeMillis() / 1000 - 7200
+        val cutoff = System.currentTimeMillis() / 1000 - MAX_WINDOW_SEC
         return timestamps.zip(glucoses).filter { it.first >= cutoff }
     }
 
@@ -408,6 +408,13 @@ class GlucoseRepository private constructor(context: Context) {
 
         /** Matches GlucoseAlertManager on the phone. */
         private const val REQUIRED_CONSECUTIVE_READINGS = 2
+
+        /**
+         * History is kept for the largest window any watch display setting
+         * can ask for, so switching graph/TIR windows doesn't have to wait
+         * for data to accumulate. Matches WatchPayloadCodec.MAX_HISTORY_AGE_SEC.
+         */
+        private const val MAX_WINDOW_SEC = 86_400L
         private const val KEY_AVERAGE_GLUCOSE = "average_glucose"
         private const val KEY_HISTORY_TS = "history_ts"
         private const val KEY_HISTORY_GL = "history_gl"

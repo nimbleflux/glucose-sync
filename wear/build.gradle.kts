@@ -67,4 +67,6 @@ dependencies {
     implementation(libs.protolayout)
     implementation(libs.protolayout.material)
     implementation("com.google.guava:guava:33.7.2-jre")
+
+    testImplementation(libs.junit)
 }
