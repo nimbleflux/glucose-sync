@@ -106,13 +106,15 @@ class GlucoseCoordinator(
         delta: Double?
     ) {
         try {
-            // Stats are computed from the merged history with the app's
-            // thresholds — the same basis the phone UI uses — so the watch
-            // shows the same numbers for every provider. Only Medtrum and
-            // DemoData ever set them on the snapshot, and Medtrum's use the
-            // pump's own thresholds, which would disagree with the phone.
+            // Alert config always comes from the phone's settings — the watch
+            // fires its own threshold alerts from whatever the payload says,
+            // so provider-specific snapshot thresholds (Medtrum's pump values)
+            // must not leak into it. Alert toggling and repeat windows mirror
+            // GlucoseAlertManager's behaviour so the two devices agree.
             val lowThreshold = try { settingsStore.getLowThresholdMmol() } catch (_: Exception) { 3.9 }
             val highThreshold = try { settingsStore.getHighThresholdMmol() } catch (_: Exception) { 10.0 }
+            val alertsEnabled = try { settingsStore.getAlertsEnabled() } catch (_: Exception) { true }
+            val alertRepeatMinutes = try { settingsStore.getAlertRepeatMinutes() } catch (_: Exception) { 5 }
             val payload = WatchPayload(
                 glucose = snapshot.glucose ?: return,
                 timestamp = snapshot.timestamp,
@@ -125,8 +127,13 @@ class GlucoseCoordinator(
                 lastBolus = snapshot.lastBolus,
                 lastBolusTime = snapshot.lastBolusTime,
                 remainingDose = snapshot.remainingDose,
-                highThreshold = snapshot.highThreshold,
-                lowThreshold = snapshot.lowThreshold,
+                highThreshold = highThreshold,
+                lowThreshold = lowThreshold,
+                alertsEnabled = alertsEnabled,
+                alertRepeatMinutes = alertRepeatMinutes,
+                // Stats are computed from the merged history with the same
+                // thresholds the phone UI uses, so the watch shows the same
+                // numbers for every provider.
                 timeInRange = GlucoseAggregator.computeTimeInRange(history, lowThreshold, highThreshold),
                 averageGlucose = history.takeIf { it.isNotEmpty() }?.map { it.glucoseMmol }?.average(),
                 history = GlucoseAggregator.trimHistory(history, WatchPayloadCodec.MAX_HISTORY_AGE_SEC)

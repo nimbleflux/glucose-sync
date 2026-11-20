@@ -19,6 +19,13 @@ data class WatchPayload(
     val remainingDose: Double? = null,
     val highThreshold: Double? = null,
     val lowThreshold: Double? = null,
+    /** Master alert toggle from the phone's settings. The watch fires its
+     *  own threshold alerts and must honour this flag. Null when the phone
+     *  build predates the flag — the watch keeps alerting (old behaviour). */
+    val alertsEnabled: Boolean? = null,
+    /** Repeat window for threshold alerts in minutes, mirroring the phone's
+     *  "alert repeat" setting. Null = watch default (5 min). */
+    val alertRepeatMinutes: Int? = null,
     /** Fraction of readings in range, 0..1 — not a percentage. */
     val timeInRange: Double? = null,
     val averageGlucose: Double? = null,
@@ -43,6 +50,8 @@ object WatchPayloadCodec {
     private const val KEY_REMAINING_DOSE = "remainingDose"
     private const val KEY_HIGH_THRESHOLD = "highThreshold"
     private const val KEY_LOW_THRESHOLD = "lowThreshold"
+    private const val KEY_ALERTS_ENABLED = "alertsEnabled"
+    private const val KEY_ALERT_REPEAT_MINUTES = "alertRepeatMinutes"
     private const val KEY_TIME_IN_RANGE = "timeInRange"
     private const val KEY_AVERAGE_GLUCOSE = "averageGlucose"
     private const val KEY_HISTORY_TS = "history_ts"
@@ -70,6 +79,8 @@ object WatchPayloadCodec {
         payload.remainingDose?.let { dataMap.putDouble(KEY_REMAINING_DOSE, it) }
         payload.highThreshold?.let { dataMap.putDouble(KEY_HIGH_THRESHOLD, it) }
         payload.lowThreshold?.let { dataMap.putDouble(KEY_LOW_THRESHOLD, it) }
+        payload.alertsEnabled?.let { dataMap.putBoolean(KEY_ALERTS_ENABLED, it) }
+        payload.alertRepeatMinutes?.let { dataMap.putInt(KEY_ALERT_REPEAT_MINUTES, it) }
         payload.timeInRange?.let { dataMap.putDouble(KEY_TIME_IN_RANGE, it) }
         payload.averageGlucose?.let { dataMap.putDouble(KEY_AVERAGE_GLUCOSE, it) }
         if (payload.history.isNotEmpty()) {
@@ -102,6 +113,8 @@ object WatchPayloadCodec {
             remainingDose = dataMap.getDoubleOrNull(KEY_REMAINING_DOSE),
             highThreshold = dataMap.getDoubleOrNull(KEY_HIGH_THRESHOLD),
             lowThreshold = dataMap.getDoubleOrNull(KEY_LOW_THRESHOLD),
+            alertsEnabled = dataMap.getBooleanOrNull(KEY_ALERTS_ENABLED),
+            alertRepeatMinutes = dataMap.getIntOrNull(KEY_ALERT_REPEAT_MINUTES),
             timeInRange = dataMap.getDoubleOrNull(KEY_TIME_IN_RANGE),
             averageGlucose = dataMap.getDoubleOrNull(KEY_AVERAGE_GLUCOSE),
             history = history
@@ -113,4 +126,10 @@ object WatchPayloadCodec {
 
     private fun DataMap.getLongOrNull(key: String): Long? =
         if (containsKey(key)) getLong(key) else null
+
+    private fun DataMap.getBooleanOrNull(key: String): Boolean? =
+        if (containsKey(key)) getBoolean(key) else null
+
+    private fun DataMap.getIntOrNull(key: String): Int? =
+        if (containsKey(key)) getInt(key) else null
 }

@@ -23,6 +23,8 @@ class WatchPayloadCodecTest {
         remainingDose = 120.0,
         highThreshold = 10.0,
         lowThreshold = 3.9,
+        alertsEnabled = true,
+        alertRepeatMinutes = 10,
         timeInRange = 0.82,
         averageGlucose = 6.1,
         history = listOf(
@@ -52,8 +54,19 @@ class WatchPayloadCodecTest {
         assertEquals(fullPayload.remainingDose!!, d.remainingDose!!, 0.0001)
         assertEquals(fullPayload.highThreshold!!, d.highThreshold!!, 0.0001)
         assertEquals(fullPayload.lowThreshold!!, d.lowThreshold!!, 0.0001)
+        assertEquals(fullPayload.alertsEnabled!!, d.alertsEnabled!!)
+        assertEquals(fullPayload.alertRepeatMinutes!!, d.alertRepeatMinutes!!)
         assertEquals(fullPayload.timeInRange!!, d.timeInRange!!, 0.0001)
         assertEquals(fullPayload.averageGlucose!!, d.averageGlucose!!, 0.0001)
+    }
+
+    @Test
+    fun roundTrip_preservesExplicitlyDisabledAlerts() {
+        // false must survive the round trip — this is the value that stops
+        // the watch from alerting, so it must not be conflated with "absent".
+        val payload = fullPayload.copy(alertsEnabled = false)
+        val decoded = WatchPayloadCodec.fromDataMap(WatchPayloadCodec.toDataMap(payload))!!
+        assertEquals(false, decoded.alertsEnabled)
     }
 
     @Test
@@ -97,6 +110,8 @@ class WatchPayloadCodecTest {
         assertNull(d.remainingDose)
         assertNull(d.highThreshold)
         assertNull(d.lowThreshold)
+        assertNull(d.alertsEnabled)
+        assertNull(d.alertRepeatMinutes)
         assertNull(d.timeInRange)
         assertNull(d.averageGlucose)
         assertEquals(emptyList<GlucoseHistoryPoint>(), d.history)

@@ -45,6 +45,8 @@ class GlucoseDataReceiver : WearableListenerService() {
                     remainingDose = if (map.getDouble("remainingDose", -1.0) >= 0) map.getDouble("remainingDose") else null,
                     highThreshold = if (map.getDouble("highThreshold", -1.0) >= 0) map.getDouble("highThreshold") else null,
                     lowThreshold = if (map.getDouble("lowThreshold", -1.0) >= 0) map.getDouble("lowThreshold") else null,
+                    alertsEnabled = if (map.containsKey("alertsEnabled")) map.getBoolean("alertsEnabled") else null,
+                    alertRepeatMinutes = if (map.getInt("alertRepeatMinutes", -1) > 0) map.getInt("alertRepeatMinutes") else null,
                     timeInRange = if (map.getDouble("timeInRange", -1.0) >= 0) map.getDouble("timeInRange") else null,
                     averageGlucose = if (map.getDouble("averageGlucose", -1.0) >= 0) map.getDouble("averageGlucose") else null,
                     history = history
