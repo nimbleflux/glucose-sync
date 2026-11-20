@@ -49,6 +49,11 @@ import com.nimbleflux.glucosesync.wear.R
 import com.nimbleflux.glucosesync.wear.complication.ComplicationIcons
 import com.nimbleflux.glucosesync.wear.repository.GlucoseRepository
 import com.nimbleflux.glucosesync.wear.repository.WatchGlucoseState
+import com.nimbleflux.glucosesync.wear.repository.WatchSettings
+import com.nimbleflux.glucosesync.wear.repository.WatchDisplaySettings
+import com.nimbleflux.glucosesync.wear.repository.WatchWindowStats
+import com.nimbleflux.glucosesync.wear.repository.computeWindowStats
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -59,15 +64,21 @@ import java.util.concurrent.TimeUnit
 
 private val LowColor = Color(0xFF4FC3F7)
 
+/** Screens reachable from the dashboard. Side button goes back one level. */
+private enum class WearScreen { Dashboard, Settings, GraphWindow, TirWindow }
+
 class MainActivity : ComponentActivity() {
 
     private val repo by lazy { GlucoseRepository.getInstance(this) }
+    private val watchSettings by lazy { WatchSettings(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             val state by repo.state.collectAsState(initial = WatchGlucoseState())
+            val displaySettings by watchSettings.settings.collectAsState()
+            var screen by rememberSaveable { mutableStateOf(WearScreen.Dashboard) }
 
             RequestFreshDataOnResume()
             RequestNotificationPermission()
@@ -81,12 +92,37 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            if (state.glucose > 0.0 && !state.isStale) {
-                GlucoseDashboard(state, ::requestFreshData)
-            } else if (state.glucose > 0.0 && state.isStale) {
-                StaleGlucoseScreen(state, ::requestFreshData)
-            } else {
-                WaitingForDataScreen()
+            when (screen) {
+                WearScreen.Dashboard -> when {
+                    state.glucose > 0.0 && !state.isStale -> GlucoseDashboard(
+                        state,
+                        displaySettings,
+                        onOpenSettings = { screen = WearScreen.Settings },
+                        onRefresh = ::requestFreshData
+                    )
+                    state.glucose > 0.0 && state.isStale -> StaleGlucoseScreen(state, ::requestFreshData)
+                    else -> WaitingForDataScreen()
+                }
+                WearScreen.Settings -> WatchSettingsScreen(
+                    settings = displaySettings,
+                    onGraphWindowClick = { screen = WearScreen.GraphWindow },
+                    onTirWindowClick = { screen = WearScreen.TirWindow },
+                    onBack = { screen = WearScreen.Dashboard }
+                )
+                WearScreen.GraphWindow -> WindowPickerScreen(
+                    title = "Graph window",
+                    options = WatchSettings.GRAPH_WINDOW_OPTIONS,
+                    selectedHours = displaySettings.graphWindowHours,
+                    onSelect = { watchSettings.graphWindowHours = it },
+                    onBack = { screen = WearScreen.Settings }
+                )
+                WearScreen.TirWindow -> WindowPickerScreen(
+                    title = "TIR window",
+                    options = WatchSettings.TIR_WINDOW_OPTIONS,
+                    selectedHours = displaySettings.tirWindowHours,
+                    onSelect = { watchSettings.tirWindowHours = it },
+                    onBack = { screen = WearScreen.Settings }
+                )
             }
         }
     }
@@ -167,10 +203,22 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun GlucoseDashboard(state: WatchGlucoseState, onRefresh: () -> Unit) {
+private fun GlucoseDashboard(
+    state: WatchGlucoseState,
+    settings: WatchDisplaySettings,
+    onOpenSettings: () -> Unit,
+    onRefresh: () -> Unit
+) {
     val listState = rememberScalingLazyListState()
     var refreshing by remember { mutableStateOf(false) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
+
+    // History is stored for up to 24h; trim to the user's graph window here
+    // so the sparkline, its time labels and the Range stat all agree.
+    val graphHistory = remember(state.history, settings.graphWindowHours) {
+        val cutoff = System.currentTimeMillis() / 1000 - settings.graphWindowHours * 3600L
+        state.history.filter { it.first >= cutoff }
+    }
 
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
@@ -217,11 +265,11 @@ private fun GlucoseDashboard(state: WatchGlucoseState, onRefresh: () -> Unit) {
         ) {
             item { GlucoseHero(state) }
 
-            if (state.history.size >= 4) {
+            if (graphHistory.size >= 4) {
                 item {
                     Spacer(modifier = Modifier.height(2.dp))
                     WatchSparkline(
-                        history = state.history,
+                        history = graphHistory,
                         highThreshold = state.highThreshold,
                         lowThreshold = state.lowThreshold,
                         modifier = Modifier
@@ -233,7 +281,7 @@ private fun GlucoseDashboard(state: WatchGlucoseState, onRefresh: () -> Unit) {
 
             item {
                 Spacer(modifier = Modifier.height(2.dp))
-                StatsRow(state)
+                StatsRow(state, settings, graphHistory)
             }
 
             if (state.iob != null || state.basalRate != null || state.lastBolus != null || state.remainingDose != null) {
@@ -253,6 +301,22 @@ private fun GlucoseDashboard(state: WatchGlucoseState, onRefresh: () -> Unit) {
             item {
                 Spacer(modifier = Modifier.height(2.dp))
                 LastUpdatedText(state.timestamp)
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(4.dp))
+                Chip(
+                    onClick = onOpenSettings,
+                    label = {
+                        Text(
+                            text = "Settings",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colors.onSurfaceVariant
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(0.92f),
+                    colors = ChipDefaults.secondaryChipColors()
+                )
             }
         }
 
@@ -360,14 +424,30 @@ private fun GlucoseHero(state: WatchGlucoseState) {
 }
 
 @Composable
-private fun StatsRow(state: WatchGlucoseState) {
+private fun StatsRow(
+    state: WatchGlucoseState,
+    settings: WatchDisplaySettings,
+    graphHistory: List<Pair<Long, Double>>
+) {
+    // TIR and average are computed on the watch over the user's TIR window.
+    // When the stored history doesn't span that window (fresh install, or an
+    // older phone build that pushes 2h), computeWindowStats falls back to the
+    // phone-computed payload values, which are 24h-based.
+    val stats = computeWindowStats(
+        history = state.history,
+        windowHours = settings.tirWindowHours,
+        lowThreshold = state.lowThreshold,
+        highThreshold = state.highThreshold,
+        fallback = WatchWindowStats(state.timeInRange, state.averageGlucose, coveredWindow = false),
+        nowSec = System.currentTimeMillis() / 1000
+    )
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        state.timeInRange?.let { tir ->
+        stats?.timeInRange?.let { tir ->
             StatChip(
-                label = "TIR",
+                label = if (stats.coveredWindow) "TIR·${settings.tirWindowHours}h" else "TIR·24h",
                 value = String.format("%.0f%%", tir * 100),
                 color = when {
                     tir >= 0.7 -> MaterialTheme.colors.primary
@@ -376,16 +456,16 @@ private fun StatsRow(state: WatchGlucoseState) {
                 }
             )
         }
-        state.averageGlucose?.let { avg ->
+        stats?.averageGlucose?.let { avg ->
             StatChip(
                 label = "Avg",
                 value = String.format("%.1f", avg),
                 color = MaterialTheme.colors.onSurfaceVariant
             )
         }
-        if (state.history.isNotEmpty()) {
-            val high = state.history.maxOf { it.second }
-            val low = state.history.minOf { it.second }
+        if (graphHistory.isNotEmpty()) {
+            val high = graphHistory.maxOf { it.second }
+            val low = graphHistory.minOf { it.second }
             StatChip(
                 label = "Range",
                 value = String.format("%.1f / %.1f", low, high),
@@ -690,7 +770,15 @@ private fun WatchSparkline(
 
         val timeStart = history.first().first
         val timeEnd = history.last().first
-        val stepSec = if (historyDuration > 5400) 1800L else 900L
+        // Adaptive time-label density: roughly one label per 1-2 watch-screen
+        // widths across the visible window, whatever its length.
+        val stepSec = when {
+            historyDuration <= 2 * 3600 -> 900L
+            historyDuration <= 4 * 3600 -> 1800L
+            historyDuration <= 8 * 3600 -> 3600L
+            historyDuration <= 16 * 3600 -> 7200L
+            else -> 14400L
+        }
         val firstLabel = ((timeStart + stepSec - 1) / stepSec) * stepSec
         var t = firstLabel
         while (t < timeEnd) {
