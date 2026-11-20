@@ -27,6 +27,8 @@ data class WatchGlucoseState(
     val remainingDose: Double? = null,
     val highThreshold: Double = 10.0,
     val lowThreshold: Double = 3.9,
+    val alertsEnabled: Boolean = true,
+    val alertRepeatMinutes: Int = 5,
     val timeInRange: Double? = null,
     val averageGlucose: Double? = null
 ) {
@@ -82,6 +84,8 @@ class GlucoseRepository private constructor(context: Context) {
         remainingDose: Double? = null,
         highThreshold: Double? = null,
         lowThreshold: Double? = null,
+        alertsEnabled: Boolean? = null,
+        alertRepeatMinutes: Int? = null,
         timeInRange: Double? = null,
         averageGlucose: Double? = null,
         history: List<Pair<Long, Double>>? = null
@@ -101,6 +105,8 @@ class GlucoseRepository private constructor(context: Context) {
             .apply { remainingDose?.let { putFloat(KEY_REMAINING_DOSE, it.toFloat()) } }
             .apply { highThreshold?.let { putFloat(KEY_HIGH_THRESHOLD, it.toFloat()) } }
             .apply { lowThreshold?.let { putFloat(KEY_LOW_THRESHOLD, it.toFloat()) } }
+            .apply { alertsEnabled?.let { putBoolean(KEY_ALERTS_ENABLED, it) } }
+            .apply { alertRepeatMinutes?.let { putInt(KEY_ALERT_REPEAT_MINUTES, it) } }
             .apply { timeInRange?.let { putFloat(KEY_TIME_IN_RANGE, it.toFloat()) } ?: remove(KEY_TIME_IN_RANGE) }
             .apply { averageGlucose?.let { putFloat(KEY_AVERAGE_GLUCOSE, it.toFloat()) } ?: remove(KEY_AVERAGE_GLUCOSE) }
             .apply()
@@ -117,6 +123,8 @@ class GlucoseRepository private constructor(context: Context) {
             iob, delta, batteryPercent, basalRate, lastBolus, lastBolusTime, remainingDose,
             highThreshold ?: _state.value.highThreshold,
             lowThreshold ?: _state.value.lowThreshold,
+            alertsEnabled ?: _state.value.alertsEnabled,
+            alertRepeatMinutes ?: _state.value.alertRepeatMinutes,
             timeInRange, averageGlucose
         )
         saving = false
@@ -127,17 +135,51 @@ class GlucoseRepository private constructor(context: Context) {
     @Volatile
     private var lastVibrationTime: Long = 0L
 
+    /**
+     * Hysteresis on the threshold alerts, mirroring the phone-side
+     * GlucoseAlertManager: requires two consecutive out-of-range readings
+     * before alerting, preventing boundary thrash when readings hover
+     * right at the threshold. Reset to 0 whenever a reading is in range
+     * or alerts are disabled.
+     */
+    @Volatile private var consecutiveHighCount = 0
+    @Volatile private var consecutiveLowCount = 0
+
     private fun checkThresholdAlert(glucose: Double) {
         if (glucose <= 0.0) return
         val state = _state.value
+
+        // The phone's master alert toggle is the source of truth — it is
+        // mirrored in every payload (WatchPayload.alertsEnabled). Without
+        // this check the watch kept buzzing even when alerts were disabled
+        // in the phone app, because the payload always carried threshold
+        // values (they also drive the display colours and graph bands).
+        if (!state.alertsEnabled) {
+            consecutiveHighCount = 0
+            consecutiveLowCount = 0
+            return
+        }
+
         val isHigh = glucose > state.highThreshold
         val isLow = glucose < state.lowThreshold
-        if (!isHigh && !isLow) return
+        val consecutive = if (isHigh) {
+            consecutiveLowCount = 0
+            ++consecutiveHighCount
+        } else if (isLow) {
+            consecutiveHighCount = 0
+            ++consecutiveLowCount
+        } else {
+            consecutiveHighCount = 0
+            consecutiveLowCount = 0
+            0
+        }
+        if (consecutive < REQUIRED_CONSECUTIVE_READINGS) return
 
-        // Throttle: only alert once every 5 minutes to avoid buzzing
-        // on every reading when the sensor updates frequently.
+        // Throttle: only alert once per repeat window (mirrors the phone's
+        // "alert repeat" setting) to avoid buzzing on every reading when the
+        // sensor updates frequently.
         val now = System.currentTimeMillis()
-        val repeatMs = 5 * 60_000L
+        val repeatMs = state.alertRepeatMinutes * 60_000L
         if (now - lastVibrationTime < repeatMs) return
         lastVibrationTime = now
 
@@ -328,6 +370,8 @@ class GlucoseRepository private constructor(context: Context) {
             remainingDose = prefs.getFloat(KEY_REMAINING_DOSE, -1f).let { if (it < 0) null else it.toDouble() },
             highThreshold = prefs.getFloat(KEY_HIGH_THRESHOLD, 10f).toDouble(),
             lowThreshold = prefs.getFloat(KEY_LOW_THRESHOLD, 3.9f).toDouble(),
+            alertsEnabled = prefs.getBoolean(KEY_ALERTS_ENABLED, true),
+            alertRepeatMinutes = prefs.getInt(KEY_ALERT_REPEAT_MINUTES, 5),
             timeInRange = prefs.getFloat(KEY_TIME_IN_RANGE, -1f).let { if (it < 0) null else it.toDouble() },
             averageGlucose = prefs.getFloat(KEY_AVERAGE_GLUCOSE, -1f).let { if (it < 0) null else it.toDouble() }
         )
@@ -358,7 +402,12 @@ class GlucoseRepository private constructor(context: Context) {
         private const val KEY_REMAINING_DOSE = "remaining_dose"
         private const val KEY_HIGH_THRESHOLD = "high_threshold"
         private const val KEY_LOW_THRESHOLD = "low_threshold"
+        private const val KEY_ALERTS_ENABLED = "alerts_enabled"
+        private const val KEY_ALERT_REPEAT_MINUTES = "alert_repeat_minutes"
         private const val KEY_TIME_IN_RANGE = "time_in_range"
+
+        /** Matches GlucoseAlertManager on the phone. */
+        private const val REQUIRED_CONSECUTIVE_READINGS = 2
         private const val KEY_AVERAGE_GLUCOSE = "average_glucose"
         private const val KEY_HISTORY_TS = "history_ts"
         private const val KEY_HISTORY_GL = "history_gl"

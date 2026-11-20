@@ -10,6 +10,7 @@ import com.nimbleflux.glucosesync.app.BuildConfig
 import com.nimbleflux.glucosesync.app.R
 import com.nimbleflux.glucosesync.app.data.SettingsStore
 import com.nimbleflux.glucosesync.app.domain.GlucoseCoordinator
+import com.nimbleflux.glucosesync.app.domain.ProcessedSnapshot
 import com.nimbleflux.glucosesync.shared.data.CredentialStore
 import com.nimbleflux.glucosesync.shared.domain.DemoData
 import com.nimbleflux.glucosesync.shared.domain.AlertEntry
@@ -105,6 +106,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val refreshMutex = Mutex()
     private var demoPollingJob: kotlinx.coroutines.Job? = null
     private var autoRefreshJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Last successful fetch result, kept so alert-setting changes can be
+     * pushed to the watch immediately instead of waiting for the next poll.
+     */
+    private var lastProcessed: ProcessedSnapshot? = null
 
     init {
         checkWearCompanion()
@@ -386,6 +393,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         snapshot.glucose?.let { _ ->
+            lastProcessed = ProcessedSnapshot(snapshot, trimmed, snapshot.delta, snapshot.trend)
             viewModelScope.launch {
                 coordinator.pushToWatch(snapshot, trimmed, snapshot.trend.symbol, snapshot.delta)
             }
@@ -462,6 +470,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 coordinator.fetchAndProcess(p, _uiState.value.history)
                     .onSuccess { processed ->
+                        lastProcessed = processed
                         val snapshot = processed.snapshot
                         _uiState.update {
                             it.copy(
@@ -528,6 +537,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             settingsStore.setAlertsEnabled(enabled)
             _uiState.update { it.copy(alertsEnabled = enabled) }
+            syncAlertSettingsToWatch()
         }
     }
 
@@ -535,6 +545,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             settingsStore.setHighThresholdMmol(mmol)
             _uiState.update { it.copy(highThresholdMmol = mmol) }
+            syncAlertSettingsToWatch()
         }
     }
 
@@ -542,6 +553,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             settingsStore.setLowThresholdMmol(mmol)
             _uiState.update { it.copy(lowThresholdMmol = mmol) }
+            syncAlertSettingsToWatch()
         }
     }
 
@@ -556,6 +568,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             settingsStore.setAlertRepeatMinutes(minutes)
             _uiState.update { it.copy(alertRepeatMinutes = minutes) }
+            syncAlertSettingsToWatch()
+        }
+    }
+
+    /**
+     * Re-push the last known reading to the watch right after an alert
+     * setting changed, so the watch picks up the new toggle/thresholds
+     * immediately. Without this the watch would keep the old behaviour
+     * until the next poll — up to 5 minutes when the phone app is
+     * backgrounded. No-op before the first successful fetch; the next
+     * regular poll covers it then.
+     */
+    private fun syncAlertSettingsToWatch() {
+        val last = lastProcessed ?: return
+        viewModelScope.launch {
+            coordinator.pushToWatch(last.snapshot, last.history, last.trend.symbol, last.delta)
         }
     }
 
